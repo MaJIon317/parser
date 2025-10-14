@@ -1,10 +1,25 @@
 <?php
 
 use App\Models\Donor;
+use App\Models\Product;
+use App\Services\ParserNew\ProductParser;
 
 Route::get('/test', function () {
-    $donor = Donor::first();
-dd($donor->toArray());
+
+    $product = Product::first();
+
+    if (!$product) {
+        // берем товар
+        $product = Product::create([
+            'code' => fake()->uuid(),
+            'url' => fake()->url(),
+            'donor_id' => Donor::first()->id,
+        ]);
+    }
+
+    $result = ProductParser::parse($product);
+
+    dd($result);
     return (new \App\Services\Parser\ParserService($donor))->parsePages();
 });
 

@@ -32,7 +32,7 @@ class DonorForm
                                     ->required()
                                     ->unique(),
 
-                                TextInput::make('base_url')
+                                TextInput::make('code')
                                     ->required(),
 
                                 Select::make('currency_id')

@@ -20,9 +20,8 @@ class Product extends Model
         'donor_id',
         'code',
         'url',
-        'name',
         'price',
-        'data',
+        'detail',
         'images',
         'parsing_status',
         'status',
@@ -31,7 +30,7 @@ class Product extends Model
     ];
 
     public $casts = [
-        'data' => 'array',
+        'detail' => 'array',
         'images' => 'array',
         'errors' => 'array',
     ];

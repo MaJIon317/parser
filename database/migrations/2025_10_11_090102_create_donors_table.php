@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('currency_id')->nullable();
 
             $table->string('name')->unique(); // example.com, shop.ua и т.д.
-            $table->string('base_url');
+            $table->string('code');
             $table->integer('rate_limit')->default(30); // лимит запросов в минуту
             $table->integer('delay_min')->default(1);   // минимальная задержка между запросами
             $table->integer('delay_max')->default(5);   // максимальная задержка

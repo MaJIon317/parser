@@ -17,9 +17,8 @@ return new class extends Migration
             $table->unsignedBigInteger('donor_id'); // Указываем идентификатор проекта, с которого парсим
             $table->string('code')->index(); // Уникальный код внутри донора, по которому находим товар
             $table->string('url')->nullable();
-            $table->string('name')->nullable();
             $table->decimal('price', 20, 8)->nullable();
-            $table->json('data')->nullable();
+            $table->json('detail')->nullable();
             $table->json('images')->nullable();
             $table->string('parsing_status')->default('new');
             $table->string('status')->default('active');
@@ -33,6 +32,8 @@ return new class extends Migration
 
             $table->unique(['donor_id', 'code']);
         });
+
+
     }
 
     /**

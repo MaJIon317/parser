@@ -10,7 +10,7 @@ class Donor extends Model
     protected $fillable = [
         'currency_id',
         'name',
-        'base_url',
+        'code',
         'rate_limit',
         'delay_min',
         'delay_max',

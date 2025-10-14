@@ -15,6 +15,7 @@ class DonorsTable
         return $table
             ->columns([
                 TextColumn::make('name'),
+                TextColumn::make('code'),
             ])
             ->filters([
                 //
