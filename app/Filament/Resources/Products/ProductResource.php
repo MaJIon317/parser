@@ -22,11 +22,6 @@ class ProductResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    public static function form(Schema $schema): Schema
-    {
-        return ProductForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return ProductInfolist::configure($schema);
@@ -48,9 +43,7 @@ class ProductResource extends Resource
     {
         return [
             'index' => ListProducts::route('/'),
-            'create' => CreateProduct::route('/create'),
             'view' => ViewProduct::route('/{record}'),
-            'edit' => EditProduct::route('/{record}/edit'),
         ];
     }
 }

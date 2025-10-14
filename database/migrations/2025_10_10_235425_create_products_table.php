@@ -18,16 +18,20 @@ return new class extends Migration
             $table->string('code')->index(); // Уникальный код внутри донора, по которому находим товар
             $table->string('url')->nullable();
             $table->string('name')->nullable();
+            $table->decimal('price', 20, 8)->nullable();
             $table->json('data')->nullable();
             $table->json('images')->nullable();
             $table->string('parsing_status')->default('new');
             $table->string('status')->default('active');
 
             $table->timestamp('last_parsing')->nullable();
+            $table->json('errors')->nullable();
 
             $table->timestamps();
 
             $table->foreign('donor_id')->references('id')->on('donors')->onDelete('cascade');
+
+            $table->unique(['donor_id', 'code']);
         });
     }
 
