@@ -59,23 +59,24 @@ class HtmlFetcher
         $triedProxies = 0;
         $attemptedProxies = [];
 
-        // Попробуем прямой запрос
-        $resp = $this->attemptWithRetries($url, null);
+        if (!$proxies) {
+            // Попробуем прямой запрос
+            $resp = $this->attemptWithRetries($url, null);
 
-        // ✅ Пропускаем страницу, если 404
-        if (($resp['code'] ?? 0) === 404) {
-            Log::info("HtmlFetcher: 404 detected, skipping URL {$url}");
-            return null;
+            // ✅ Пропускаем страницу, если 404
+            if (($resp['code'] ?? 0) === 404) {
+                Log::info("HtmlFetcher: 404 detected, skipping URL {$url}");
+                return null;
+            }
+
+            if ($this->isGoodResponse($resp['code'] ?? 0, $resp['body'] ?? '')) {
+                Cache::put($cacheKey, $resp['body'], now()->addMinutes($this->cacheMinutes));
+                return $resp['body'];
+            }
+
+            Log::warning("HtmlFetcher: direct request failed for {$url}. Trying proxies...");
         }
 
-        if ($this->isGoodResponse($resp['code'] ?? 0, $resp['body'] ?? '')) {
-            Cache::put($cacheKey, $resp['body'], now()->addMinutes($this->cacheMinutes));
-            return $resp['body'];
-        }
-
-        Log::warning("HtmlFetcher: direct request failed for {$url}. Trying proxies...");
-
-        // Пробуем прокси с рейтингом
         $proxies = $this->sortProxiesBySuccess($proxies);
 
         foreach ($proxies as $proxy) {
