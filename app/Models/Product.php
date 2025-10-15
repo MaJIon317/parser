@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Facades\Currency as CurrencyFacade;
 use App\Observers\ProductObserver;
 use App\Services\ProductWithdrawalService;
 use App\Traits\HasUuid;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,9 +20,12 @@ class Product extends Model
     protected $fillable = [
         'uuid',
         'donor_id',
+        'category_id',
         'code',
         'url',
         'price',
+        'currency_id',
+        'object',
         'detail',
         'images',
         'parsing_status',
@@ -35,21 +40,29 @@ class Product extends Model
         'errors' => 'array',
     ];
 
+    protected function serializeDate(DateTimeInterface $date): string
+    {
+        return $date->format('Y-m-d H:i:s');
+    }
+
     public function donor(): BelongsTo
     {
         return $this->belongsTo(Donor::class);
     }
 
-    public function currency(): HasOneThrough
+    public function category(): BelongsTo
     {
-        return $this->hasOneThrough(
-            Currency::class,
-            Donor::class,
-            'id',
-            'id',
-            'donor_id',
-            'currency_id'
-        );
+        return $this->belongsTo(Category::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
+    }
+
+    public function getFormattedPriceAttribute():   ?string
+    {
+        return CurrencyFacade::format($this->price, $this->currency);
     }
 
     public function getImagePathsAttribute(): array
@@ -59,18 +72,11 @@ class Product extends Model
             ->toArray();
     }
 
-    public function getTranslationAttribute(): array
+    public function isTranslation(?string $toLang = null): array
     {
-        $defaultLocale = config('app.fallback_locale');
-        $locale = $this->donor->setting['language'] ?? $defaultLocale;
-
-        return (new ProductWithdrawalService($locale, $defaultLocale))->getTranslatedProduct($this->toArray());
-    }
-
-    public function getTranslationAttributesAttribute(): array
-    {
-        return collect($this->translation['attributes'] ?? [])
-            ->mapWithKeys(fn ($item) => [$item['key'] => $item['value']])
-            ->toArray();
+        return (new ProductWithdrawalService(
+                    $this->donor->setting['language'] ?? config('app.fallback_locale'),
+                    $toLang))
+                ->getTranslatedProduct($this->toArray());
     }
 }

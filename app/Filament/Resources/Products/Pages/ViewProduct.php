@@ -3,11 +3,11 @@
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
-use App\Jobs\ProductParserJob;
+use App\Jobs\ParseProductJob;
 use App\Models\Product;
-use App\Services\Parser\ParserService;
-use App\Services\Parser\ProductParser;
+use App\Services\Parser;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewProduct extends ViewRecord
@@ -17,15 +17,6 @@ class ViewProduct extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('parse_test')
-                ->color('warning')
-                ->icon('heroicon-o-inbox-arrow-down')
-                ->tooltip('The product data will be downloaded from the donor\'s website.')
-                ->action(function (Product $record) {
-
-                    (new ProductParser($record))->parse(test: true);
-
-                }),
 
             Action::make('customAction')
                 ->label(__('Parse'))
@@ -33,9 +24,14 @@ class ViewProduct extends ViewRecord
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Product $record) {
 
-                    ProductParserJob::dispatchSync($record);
+                    ParseProductJob::dispatchSync($record);
 
                     $record->refresh();
+
+                    Notification::make()
+                        ->title(__('The product has been updated'))
+                        ->success()
+                        ->send();
                 }),
 
         ];

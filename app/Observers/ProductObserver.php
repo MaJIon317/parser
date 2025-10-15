@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Jobs\ProductParserJob;
+use App\Jobs\ParseProductJob;
 use App\Models\Product;
 
 class ProductObserver
@@ -12,7 +12,8 @@ class ProductObserver
      */
     public function created(Product $product): void
     {
-        ProductParserJob::dispatch($product);
+        // Запускаем парсинг нового товара
+        ParseProductJob::dispatch($product);
     }
 
     /**

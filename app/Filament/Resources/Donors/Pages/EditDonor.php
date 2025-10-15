@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\Donors\Pages;
 
 use App\Filament\Resources\Donors\DonorResource;
-use App\Jobs\PagesParserJob;
+use App\Jobs\ParseDonorJob;
 use App\Models\Donor;
-use App\Services\Parser\PageParser;
+use App\Services\Parser;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -23,8 +23,9 @@ class EditDonor extends EditRecord
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Donor $record) {
 
-                    (new PageParser($record))->parse(test: true);
+                    $test = Parser::make($record)->pages();
 
+                    dd($test);
                 }),
 
             Action::make('customAction')
@@ -33,9 +34,7 @@ class EditDonor extends EditRecord
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Donor $record) {
 
-                    PagesParserJob::dispatch($record);
-
-                    $record->refresh();
+                    ParseDonorJob::dispatchSync($record);
 
                     Notification::make()
                         ->title(__('Sent for processing'))

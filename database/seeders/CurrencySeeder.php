@@ -13,8 +13,26 @@ class CurrencySeeder extends Seeder
      */
     public function run(): void
     {
-        Currency::factory()->create([
-            'code' => 'USD',
+        Currency::factory()->createMany([
+            [
+                'code' => 'USD',
+            ],
+            [
+                'code' => 'EUR',
+                'rate' => 0.8612,
+            ],
+            [
+                'code' => 'HKD',
+                'rate' => 0.1286,
+            ],
+            [
+                'code' => 'RMB',
+                'rate' => 0.1401,
+            ],
+            [
+                'code' => 'JPY',
+                'rate' => 0.006589,
+            ],
         ]);
     }
 }

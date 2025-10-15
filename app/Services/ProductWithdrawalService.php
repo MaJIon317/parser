@@ -14,199 +14,153 @@ class ProductWithdrawalService
     protected int $batchSize = 50;
     protected bool $status = true;
 
-    public function __construct(string $fromLang = 'ja', ?string $toLang = null)
+    public function __construct(?string $fromLang = null, ?string $toLang = null)
     {
-        $this->fromLang = $fromLang;
-        $this->toLang = $toLang ?? config('app.fallback_locale');
+        $defaultLocale = config('app.fallback_locale');
 
+        $this->fromLang = $fromLang ?? $defaultLocale;
+        $this->toLang = $toLang ?? $defaultLocale;
     }
 
     /**
-     * Подготовка массива текстов для перевода
+     * Перевод массива: значения ключей detail, ключи + значения attributes
      */
-    public function prepareTexts(array $productData, int $product_id): array
+    protected function translateProductDetail(array $detail, int $product_id): array
     {
-        $items = [];
+        $translated = [];
 
-        if (!empty($productData['name'])) {
-            $items[] = [
-                'key' => md5($productData['name']),
-                'text' => $productData['name'],
-            ];
+        foreach ($detail as $key => $value) {
+            if ($key === 'attributes' && is_array($value)) {
+                // Рекурсивно переводим ключи и значения attributes
+                $translated[$key] = $this->translateArrayKeysAndValues($value, $product_id);
+            } elseif (is_string($value)) {
+                // Только значения для остальных полей detail
+                $translated[$key] = $this->translateString($value, $product_id);
+            } elseif (is_array($value)) {
+                // Массивы, кроме attributes, переводим рекурсивно только значения
+                $translated[$key] = $this->translateArrayValues($value, $product_id);
+            } else {
+                $translated[$key] = $value;
+            }
         }
 
-        if (!empty($productData['category'])) {
-            $items[] = [
-                'key' => $productData['category'],
-                'text' => $productData['category'],
-            ];
-        }
-
-        $attributes = $productData['data']['attributes'] ?? [];
-        foreach ($attributes as $k => $v) {
-            $items[] = ['key' => md5($k), 'text' => $k];
-            $items[] = ['key' => md5($v), 'text' => $v];
-        }
-
-        return $items;
+        return $translated;
     }
 
     /**
-     * Основная функция перевода
+     * Рекурсивный перевод ключей и значений массива
      */
-    public function translateTexts(array $texts, int $product_id): array
+    protected function translateArrayKeysAndValues(array $data, int $product_id): array
     {
-        $results = [];
+        $translated = [];
+        foreach ($data as $key => $value) {
+            // убираем лишние кавычки
+            $translatedKey = is_string($key) ? trim($this->translateString($key, $product_id), "\"' ") : $key;
 
-        foreach (array_chunk($texts, $this->batchSize) as $chunk) {
-            $results = array_merge($results, $this->translateChunk($chunk, $product_id));
+            if (is_string($value)) {
+                $translated[$translatedKey] = trim($this->translateString($value, $product_id), "\"' ");
+            } elseif (is_array($value)) {
+                $translated[$translatedKey] = $this->translateArrayKeysAndValues($value, $product_id);
+            } else {
+                $translated[$translatedKey] = $value;
+            }
         }
-
-        return $results;
+        return $translated;
     }
 
-    protected function translateChunk(array $chunk, int $product_id): array
+    /**
+     * Рекурсивный перевод только значений массива
+     */
+    protected function translateArrayValues(array $data, int $product_id): array
     {
-        $hashes = array_column($chunk, 'key');
+        $translated = [];
+        foreach ($data as $key => $value) {
+            if (is_string($value)) {
+                $translated[$key] = trim($this->translateString($value, $product_id), "\"' ");
+            } elseif (is_array($value)) {
+                $translated[$key] = $this->translateArrayValues($value, $product_id);
+            } else {
+                $translated[$key] = $value;
+            }
+        }
+        return $translated;
+    }
 
-        // 🔑 Формируем уникальный ключ кэша (по хэшам и языкам)
-        $cacheKey = "product:{$product_id}:translate:" . md5(implode('_', $hashes) . "_{$this->fromLang}_{$this->toLang}");
+    /**
+     * Перевод одной строки с кэшированием и сохранением в БД
+     */
+    protected function translateString(string $text, int $product_id): string
+    {
+        $hash = md5($text);
+        $cacheKey = "product:{$product_id}:translate:{$hash}_{$this->fromLang}_{$this->toLang}";
 
-        // 🧠 Проверяем, есть ли результат в кэше
         if (Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
 
-        // ⚡ Один запрос вместо десятков
-        $existingTranslations = Translation::whereIn('hash', $hashes)
+        $existing = Translation::where('hash', $hash)
             ->where('from_lang', $this->fromLang)
             ->where('to_lang', $this->toLang)
-            ->get()
-            ->keyBy('hash');
+            ->first();
 
-        $toTranslate = [];
-        $result = [];
-
-        foreach ($chunk as $item) {
-            $hash = $item['key'];
-            if ($existingTranslations->has($hash)) {
-                $translation = $existingTranslations[$hash];
-                $result[] = [
-                    'key' => $hash,
-                    'text' => $item['text'],
-                    'translation' => $translation->target,
-                ];
-            } else {
-                $toTranslate[] = $item;
-            }
+        if ($existing) {
+            Cache::put($cacheKey, $existing->target, now()->addMonth());
+            return $existing->target;
         }
-
-        if (empty($toTranslate)) {
-            Cache::put($cacheKey, $result, now()->addMonth());
-
-            return $result;
-        }
-
-        // 🧠 GPT-перевод только для отсутствующих
-        $texts = array_column($toTranslate, 'text');
-        $joined = implode("\n---\n", $texts);
-
-        $prompt = <<<PROMPT
-                        You are a professional translator.
-                        Translate each text block from {$this->fromLang} to {$this->toLang}.
-                        Keep the same order and formatting.
-                        Separate each translation with a line "---".
-                        PROMPT;
 
         try {
+            $prompt = <<<PROMPT
+You are a professional translator.
+Translate the following text from {$this->fromLang} to {$this->toLang}.
+Keep formatting and HTML if present.
+Text: "{$text}"
+PROMPT;
+
             $response = OpenAI::chat()->create([
                 'model' => 'gpt-4o-mini',
                 'messages' => [
                     ['role' => 'system', 'content' => $prompt],
-                    ['role' => 'user', 'content' => $joined],
+                    ['role' => 'user', 'content' => $text],
                 ],
             ]);
 
-            $content = trim($response->choices[0]->message->content ?? '');
-            $translatedBlocks = array_map('trim', explode('---', $content));
+            $translated = trim($response->choices[0]->message->content ?? $text);
 
-            $toInsert = [];
-
-            foreach ($toTranslate as $i => $item) {
-                $translatedText = $translatedBlocks[$i] ?? $item['text'];
-
-                $result[] = [
-                    'key' => $item['key'],
-                    'text' => $item['text'],
-                    'translation' => $translatedText,
-                ];
-
-                $toInsert[] = [
-                    'hash' => $item['key'],
-                    'source' => $item['text'],
-                    'target' => $translatedText,
-                    'from_lang' => $this->fromLang,
-                    'to_lang' => $this->toLang,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-
-            // ⚡ Массовая вставка для производительности
-            Translation::upsert(
-                $toInsert,
-                ['hash', 'from_lang', 'to_lang'],
-                ['target', 'updated_at']
+            Translation::updateOrCreate(
+                ['hash' => $hash, 'from_lang' => $this->fromLang, 'to_lang' => $this->toLang],
+                ['source' => $text, 'target' => $translated]
             );
 
-            Cache::put($cacheKey, $result, now()->addMonth());
+            Cache::put($cacheKey, $translated, now()->addMonth());
 
+            return $translated;
         } catch (\Throwable $e) {
-            Log::error("TranslateService: translation failed — {$e->getMessage()}");
-
-            foreach ($toTranslate as $item) {
-                $result[] = [
-                    'key' => $item['key'],
-                    'text' => $item['text'],
-                    'translation' => $item['text'],
-                ];
-            }
-
+            Log::error("ProductWithdrawalService: translation failed — {$e->getMessage()}");
             $this->status = false;
+            return $text;
         }
-
-        return $result;
     }
 
     /**
-     * Формирование нового массива продукта с переведёнными данными
+     * Основной метод для перевода всего продукта
      */
     public function getTranslatedProduct(array $productData): array
     {
-        $texts = $this->prepareTexts($productData, $productData['id']);
-        $translated = $this->translateTexts($texts, $productData['id']);
-
-        $map = [];
-        foreach ($translated as $item) {
-            $map[$item['key']] = $item['translation'] ?? $item['text'];
-        }
-
-        $name = $productData['name'] ?? '';
-        $attributes = $productData['data']['attributes'] ?? [];
-        $rebuiltAttributes = [];
-
-        foreach ($attributes as $k => $v) {
-            $rebuiltAttributes[] = [
-                'key' => $map[md5($k)] ?? $k,
-                'value' => $map[md5($v)] ?? $v,
+        // Если язык исходный = целевой — ничего не переводим
+        if ($this->fromLang === $this->toLang) {
+            return [
+                ...$productData,
+                'status_translation' => true,
             ];
         }
 
+        $detail = $productData['detail'] ?? [];
+        $translatedDetail = $this->translateProductDetail($detail, $productData['id'] ?? 0);
+
         return [
-            'name' => $map[md5($name)] ?? $name,
-            'category' => $productData['category'] ?? '',
-            'attributes' => $rebuiltAttributes,
-            'status' => $this->status,
+            ...$productData,
+            'detail' => $translatedDetail,
+            'status_translation' => $this->status,
         ];
     }
 }

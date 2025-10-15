@@ -3,14 +3,15 @@
 namespace App\Jobs;
 
 use App\Models\Product;
-use App\Services\Parser\ParserService;
+use App\Services\Parser;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /*
- * Парсим отдельный товар
+ * Парсим страницу товара
  */
-class ProductParserJob implements ShouldQueue
+class ParseProductJob implements ShouldQueue
 {
     use Queueable;
 
@@ -23,9 +24,12 @@ class ProductParserJob implements ShouldQueue
 
     /**
      * Execute the job.
+     * @throws Exception
      */
     public function handle(): void
     {
-        (new ParserService($this->product->donor))->parseProductPage($this->product);
+
+        Parser::make($this->product)->parseProduct();
+
     }
 }

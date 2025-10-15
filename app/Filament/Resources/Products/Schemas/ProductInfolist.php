@@ -6,6 +6,8 @@ use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -14,10 +16,12 @@ class ProductInfolist
 {
     public static function configure(Schema $schema): Schema
     {
-        $defaultLocale = config('app.fallback_locale');
-        $locale = $schema->getRecord()->donor->setting['language'] ?? $defaultLocale;
-
         return $schema->components([
+
+            TextEntry::make('errors')
+                ->color('danger')
+                ->columnSpanFull()
+                ->visible(fn ($record) => !empty($record['errors'])),
 
             ImageEntry::make('images')
                 ->state(function ($record) {
@@ -31,29 +35,25 @@ class ProductInfolist
                 ->visible(fn ($record) => !empty($record['images'])),
 
             Section::make('Основная информация')
+                ->columns(2)
                 ->schema([
-                    IconEntry::make('translation.status')
-                        ->label('Has the transfer been made')
-                        ->boolean(),
 
-                    TextEntry::make('name')
-                        ->size('lg')
-                        ->weight('bold')
-                        ->belowContent(fn ($record) => $record->translation['name'] ?? null)
-                        ->columnSpan(2),
+                    TextEntry::make('url')
+                        ->url(fn ($record) => $record['url'])
+                        ->openUrlInNewTab()
+                        ->copyable()
+                        ->columnSpanFull(),
 
-                    TextEntry::make('data.category')
-                        ->columnSpan(2),
+                    TextEntry::make('category.name')
+                        ->label(__('Category'))
+                        ->weight('medium')
+                        ->color('warning')
+                        ->size('lg'),
 
                     TextEntry::make('price')
                         ->state(fn($record) => "{$record['price']} {$record['currency']['code']}")
                         ->weight('medium')
                         ->color('info'),
-
-                    TextEntry::make('url')
-                        ->url(fn ($record) => $record['url'])
-                        ->openUrlInNewTab()
-                        ->copyable(),
 
                     TextEntry::make('status')
                         ->badge()
@@ -75,22 +75,37 @@ class ProductInfolist
                 ->columnSpanFull()
                 ->collapsible(),
 
-            Section::make('Data')
-                ->schema([
-                    Grid::make(2)
+            Tabs::make('Detail')
+                ->tabs([
+                    Tab::make('Default')
                         ->schema([
-                            KeyValueEntry::make('data.attributes'),
-                            KeyValueEntry::make('translation_attributes')
-                                ->label(function () use ($locale) {
-                                    return "Translated attributes from {$locale}";
-                                })
+
+                                KeyValueEntry::make('detail')
+                                    ->label('')
+                                    ->state(function ($record) {
+                                        return static::detailArray($record->detail);
+                                    }),
                         ])
-
-
                 ])
-                ->columnSpanFull()
-                ->collapsible(),
+                ->columnSpanFull(),
 
         ]);
+    }
+
+    protected static function detailArray(?array $array = null): array
+    {
+        $details = [];
+
+        foreach ($array ?? [] as $detailKey => $detailValue) {
+            if (!is_array($detailValue)) {
+                $details[$detailKey] = $detailValue;
+            } else {
+                foreach ($detailValue as $detailValueKey => $detailValueValue) {
+                    $details["[{$detailKey}] {$detailValueKey}"] = is_array($detailValueValue) ? json_encode($detailValueValue) : $detailValueValue;
+                }
+            }
+        }
+
+        return $details;
     }
 }

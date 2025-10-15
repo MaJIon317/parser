@@ -10,7 +10,7 @@ class ProductController extends Controller
 {
     public function index(): JsonResource
     {
-        return Product::paginate()->toResourceCollection();
+        return Product::whereNotNull('detail')->paginate()->toResourceCollection();
     }
 }
 

@@ -4,28 +4,27 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Arr;
 
 class ProductResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array
-     */
     public function toArray(Request $request): array
     {
-        return [
-            'uuid' => $this->uuid,
-            'price' => $this->price,
-            ...$this->translation,
-            'images' => $this->imagePaths,
-            'created_at' => $this->created_at->format('d/m/Y'),
-            'updated_at' => $this->updated_at->format('d/m/Y'),
-        ];
-    }
-
-    public function withResponse($request, $response)
-    {
-        $response->header('Content-Type', 'application/vnd.api+json');
+        return Arr::except([
+            ...$this->isTranslation(
+                in_array($request->input('locale'), array_keys(config('app.locales'))) ? $request->input('locale') : null,
+            ),
+            'object' => $this->category?->name,
+            'currency' => $this->currency?->code,
+        ], [
+            'id',
+            'parsing_status',
+            'donor_id',
+            'category_id',
+            'currency_id',
+            'donor',
+            'errors',
+            'created_at'
+        ]);
     }
 }

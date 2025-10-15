@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\Products\Tables;
 
-use App\Jobs\ProductParserJob;
+use App\Jobs\ParseProductJob;
 use App\Models\Product;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -21,23 +20,31 @@ class ProductsTable
     {
         return $table
             ->columns([
-                TextColumn::make('translation.name')
+                TextColumn::make('donor.name')
+                    ->label(__('Donor'))
                     ->searchable()
+                    ->sortable()
                     ->wrap(),
-                TextColumn::make('data.category')
+                TextColumn::make('category.name')
+                    ->label(__('Category'))
                     ->searchable()
+                    ->sortable()
                     ->wrap(),
-                TextColumn::make('price')
-                    ->state(fn($record) => "{$record['price']} {$record['currency']['code']}"),
+                TextColumn::make('formatted_price')
+                    ->sortable(),
+                TextColumn::make('status')
+                    ->sortable(),
+                TextColumn::make('parsing_status')
+                    ->sortable(),
                 TextColumn::make('url')
                     ->formatStateUsing(fn ($state) => 'LINK')
                     ->url(fn ($state) => $state)
                     ->openUrlInNewTab(),
                 TextColumn::make('images')
                     ->state(fn($record) => count($record->images ?? [])),
-                TextColumn::make('data.attributes')
+                TextColumn::make('detail.attributes')
                     ->label('Attributes')
-                    ->state(fn($record) => count($record->data['attributes'] ?? [])),
+                    ->state(fn($record) => count($record->detail['attributes'] ?? [])),
                 TextColumn::make('last_parsing')
                     ->dateTime(),
                 TextColumn::make('errors')
@@ -48,13 +55,14 @@ class ProductsTable
                 //
             ])
             ->recordActions([
+
                 Action::make('customAction')
                     ->label(__('Parse'))
                     ->icon('heroicon-o-inbox-arrow-down')
                     ->tooltip('The product data will be downloaded from the donor\'s website.')
                     ->action(function (Product $record) {
 
-                        ProductParserJob::dispatchSync($record);
+                        ParseProductJob::dispatchSync($record);
 
                         $record->refresh();
                     }),
@@ -67,7 +75,7 @@ class ProductsTable
                     BulkAction::make('parse')
                         ->action(function (Collection $records) {
                             foreach ($records as $record) {
-                                ProductParserJob::dispatch($record);
+                                ParseProductJob::dispatch($record);
                             }
 
                             Notification::make()
