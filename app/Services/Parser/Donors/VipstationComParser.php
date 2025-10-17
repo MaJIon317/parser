@@ -129,11 +129,16 @@ class VipstationComParser extends BaseParser
             ];
         }
 
-        preg_match('/var\s+iteminfo\s*=\s*(\{.*?\});/s', $scriptContent, $infoMatch);
-        preg_match('/var\s+imgList\s*=\s*(\[[^\]]*\]);/s', $scriptContent, $imgMatch);
+        $itemInfo = [];
+        $images = [];
 
-        $itemInfo = json_decode($infoMatch[1] ?? '{}', true);
-        $images = json_decode($imgMatch[1] ?? '[]', true);
+        if (preg_match('/var\s+iteminfo\s*=\s*(\{.*?\});/s', $scriptContent, $infoMatch)) {
+            $itemInfo = json_decode($infoMatch[1] ?? '{}', true) ?: [];
+        }
+
+        if (preg_match('/var\s+imgList\s*=\s*(\[[^\]]*\]);/s', $scriptContent, $imgMatch)) {
+            $images = json_decode($imgMatch[1] ?? '[]', true) ?: [];
+        }
 
         return [
             'detail' => array_filter([

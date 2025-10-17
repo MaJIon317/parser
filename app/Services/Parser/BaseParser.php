@@ -98,7 +98,7 @@ abstract class BaseParser
             ]);
         } catch (\Throwable $e) {
             $this->failLog($e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
+                'trace' => $e,
             ]);
         }
     }
@@ -129,7 +129,7 @@ abstract class BaseParser
             return $product;
         } catch (\Throwable $e) {
             $this->failLog($e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
+                'trace' => $e,
             ]);
         }
 
