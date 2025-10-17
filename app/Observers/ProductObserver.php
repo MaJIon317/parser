@@ -21,7 +21,9 @@ class ProductObserver
      */
     public function updated(Product $product): void
     {
-        //
+        if (!$product->detail || $product->parsing_status === 'new') {
+            ParseProductJob::dispatch($product);
+        }
     }
 
     /**

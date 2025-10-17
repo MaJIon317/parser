@@ -101,7 +101,7 @@ class ProductSaver
         $product->update([
             'detail' => $data['detail'] ?? null,
             'images' => $data['images'] ?? null,
-            'parsing_status' => 'parsed_details',
+            'parsing_status' => 'completed',
             'last_parsing' => now(),
             'errors' => $data['errors'] ?? null,
         ]);

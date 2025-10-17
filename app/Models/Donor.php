@@ -18,6 +18,7 @@ class Donor extends Model
         'is_active',
         'pages',
         'setting',
+        'parsing_status',
     ];
 
     public $casts = [

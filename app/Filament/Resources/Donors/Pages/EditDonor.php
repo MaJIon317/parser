@@ -34,6 +34,10 @@ class EditDonor extends EditRecord
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Donor $record) {
 
+                    $record->products()->update([
+                        'parsing_status' => 'new'
+                    ]);
+
                     ParseDonorJob::dispatchSync($record);
 
                     Notification::make()
