@@ -125,6 +125,42 @@ class WatchnianComParser extends BaseParser
 
         $name = trim($name);
 
+        $descNode = $dom->query('//div[@id="spec_goods_comment"]')?->item(0);
+        $description = '';
+
+        if ($descNode) {
+            // Собираем внутренний HTML без обёртки
+            $innerHTML = '';
+            foreach ($descNode->childNodes as $child) {
+                $innerHTML .= $descNode->ownerDocument->saveHTML($child);
+            }
+
+            // Очищаем лишние пробелы и переносы вокруг <br> и внутри текста
+            $innerHTML = preg_replace('/\s*(<br\s*\/?>)\s*/iu', '$1', $innerHTML);
+
+            // Убираем пробелы и переносы в начале и конце, но не трогаем <br>
+            $innerHTML = preg_replace('/^[\s\x{3000}\x{00A0}\r\n\t]+|[\s\x{3000}\x{00A0}\r\n\t]+$/u', '', $innerHTML);
+
+            $description = $innerHTML;
+        }
+
+// 🔹 Fallback — если описания нет, берем из "スタッフからのコメント"
+        if (empty(trim(strip_tags($description, '<br>')))) {
+            $staffNode = $dom->query('//dl[contains(@class,"goods-staff_comment")]//dd/p')?->item(0);
+            if ($staffNode) {
+                $innerHTML = '';
+                foreach ($staffNode->childNodes as $child) {
+                    $innerHTML .= $staffNode->ownerDocument->saveHTML($child);
+                }
+
+                $innerHTML = preg_replace('/\s*(<br\s*\/?>)\s*/iu', '$1', $innerHTML);
+                $innerHTML = preg_replace('/^[\s\x{3000}\x{00A0}\r\n\t]+|[\s\x{3000}\x{00A0}\r\n\t]+$/u', '', $innerHTML);
+
+                $description = $innerHTML;
+            }
+        }
+
+
         // Основные товары
         $specItems = $dom->query('//dl[contains(@class,"goods-spec")]/div[contains(@class,"goods-spec-item")]');
 
@@ -193,6 +229,7 @@ class WatchnianComParser extends BaseParser
         return [
             'detail' => [
                 'name' => $name,
+                'description' => trim($description),
                 'category' => $category,
                 'attributes' => $attributes,
             ],
