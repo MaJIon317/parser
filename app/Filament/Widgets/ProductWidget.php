@@ -29,6 +29,14 @@ class ProductWidget extends StatsOverviewWidget
                 value: Product::where('status', 'active')->count(),
             ),
             StatsOverviewWidget\Stat::make(
+                label: 'Transmitted via the API',
+                value: Product::where('status', 'active')
+                            ->whereNotNull('price')
+                            ->whereNotNull('images')
+                            ->whereNotNull('detail')
+                            ->count(),
+            ),
+            StatsOverviewWidget\Stat::make(
                 label: 'Products with details',
                 value: Product::whereNotNull('detail')->where('detail', '!=', '[]')->count(),
             ),
