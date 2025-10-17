@@ -36,9 +36,7 @@ class ProductSaver
 
             if ($validator->fails()) {
                 $skipped[] = [
-                    'code' => $data['code'] ?? null,
-                    'category_id' => $data['category_id'] ?? null,
-                    'url' => $data['url'] ?? null,
+                    ...$data,
                     'errors' => $validator->errors()->all()
                 ];
 

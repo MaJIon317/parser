@@ -14,7 +14,6 @@ return new class extends Migration
         Schema::create('currencies', function (Blueprint $table) {
             $table->id();
             $table->string('code', 3)->unique(); // ISO 4217 (например: USD, EUR)
-            $table->decimal('rate', 15, 6)->default(1); // Курс относительно базовой валюты USD
 
             $table->timestamps();
         });

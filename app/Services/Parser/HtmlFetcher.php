@@ -216,28 +216,115 @@ class HtmlFetcher
         curl_close($ch);
 
         $body = $response ?: '';
+
         return ['code' => $httpCode, 'body' => $body];
     }
 
     protected function fetchWithHeadlessBrowser(string $url): ?string
     {
-        Log::info("HtmlFetcher: fallback to headless browser for {$url}");
+        $nodeScript = base_path('node/fetch.cjs');
+        if (!file_exists($nodeScript)) {
+            Log::error("HtmlFetcher: node script not found at {$nodeScript}");
+            return null;
+        }
 
-        $nodeScript = base_path('scripts/fetch.js'); // создаем скрипт отдельно
-        $command = "node " . escapeshellarg($nodeScript) . " " . escapeshellarg($url);
+        $timeoutMs = (int)($this->globalTimeout * 1000);
+        $proxies = $this->sortProxiesBySuccess($this->getActiveProxies());
+        $triedProxyIds = [];
+        $attempts = 0;
 
-        try {
-            $output = null;
+        // helper-функция для запуска Node.js скрипта
+        $runCommand = function (string $nodeScript, string $url, ?string $proxyArg = null, int $timeoutMs = null) {
+            $parts = [
+                'node',
+                escapeshellarg($nodeScript),
+                escapeshellarg($url)
+            ];
+
+            if ($proxyArg) {
+                $parts[] = '--proxy=' . escapeshellarg($proxyArg);
+            }
+
+            if ($timeoutMs !== null) {
+                $parts[] = '--timeout=' . intval($timeoutMs);
+            }
+
+            $command = implode(' ', $parts);
+            $output = [];
             $exitCode = null;
             exec($command, $output, $exitCode);
 
-            if ($exitCode === 0 && !empty($output)) {
-                return implode("\n", $output);
+            return ['exit' => $exitCode, 'body' => implode("\n", $output)];
+        };
+
+        // 🧭 1. Попытки с прокси
+        if (!empty($proxies)) {
+            foreach ($proxies as $proxy) {
+                $proxyKey = $this->proxyCacheKey($proxy);
+                if (Cache::has($proxyKey)) {
+                    continue;
+                }
+
+                $attempts++;
+                $triedProxyIds[] = $proxy->id ?? ($proxy->host . ':' . $proxy->port);
+
+                $scheme = $proxy->scheme ?? 'http';
+                $auth = '';
+                if (!empty($proxy->username) && !empty($proxy->password)) {
+                    $user = rawurlencode($proxy->username);
+                    $pass = rawurlencode($proxy->password);
+                    $auth = "{$user}:{$pass}@";
+                }
+                $proxyStr = "{$scheme}://{$auth}{$proxy->host}:{$proxy->port}";
+
+                Log::info("HtmlFetcher: trying headless browser via proxy {$proxyStr}");
+
+                try {
+                    $res = $runCommand($nodeScript, $url, $proxyStr, $timeoutMs);
+
+                    if ($res['exit'] === 0 && !empty($res['body'])) {
+                        $this->increaseProxySuccess($proxy);
+                        Log::info("HtmlFetcher: headless fetch succeeded via proxy {$proxy->host}:{$proxy->port}");
+                        return $res['body'];
+                    }
+
+                    // если неуспешно
+                    $this->decreaseProxySuccess($proxy);
+                    Log::warning("HtmlFetcher: headless fetch failed via proxy {$proxy->host}:{$proxy->port} (exit {$res['exit']})");
+
+                    if ($res['exit'] !== 0 || empty($res['body'])) {
+                        Cache::put($proxyKey, true, now()->addMinutes(30)); // blacklist proxy
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("HtmlFetcher: exception with proxy {$this->proxyToString($proxy)} — " . $e->getMessage());
+                    $this->decreaseProxySuccess($proxy);
+                    Cache::put($proxyKey, true, now()->addMinutes(30));
+                }
+
+                if ($attempts >= $this->maxProxySwitches) {
+                    Log::info("HtmlFetcher: reached maxProxySwitches ({$this->maxProxySwitches}), stopping proxy attempts.");
+                    break;
+                }
             }
-        } catch (\Throwable $e) {
-            Log::error("HtmlFetcher Puppeteer fallback error: " . $e->getMessage());
         }
 
+        // 🧭 2. Попытка напрямую (без прокси)
+        Log::info("HtmlFetcher: trying headless fetch WITHOUT proxy for {$url}");
+
+        try {
+            $res = $runCommand($nodeScript, $url, null, $timeoutMs);
+
+            if ($res['exit'] === 0 && !empty($res['body'])) {
+                Log::info("HtmlFetcher: headless fetch succeeded without proxy for {$url}");
+                return $res['body'];
+            }
+
+            Log::warning("HtmlFetcher: headless fetch without proxy failed (exit {$res['exit']})");
+        } catch (\Throwable $e) {
+            Log::error("HtmlFetcher: exception running headless fetch without proxy — " . $e->getMessage());
+        }
+
+        Log::error("HtmlFetcher: all headless browser attempts failed for {$url}. Proxies tried: " . implode(',', $triedProxyIds));
         return null;
     }
 

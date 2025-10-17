@@ -50,8 +50,7 @@ class ProductInfolist
                         ->color('warning')
                         ->size('lg'),
 
-                    TextEntry::make('price')
-                        ->state(fn($record) => "{$record['price']} {$record['currency']['code']}")
+                    TextEntry::make('formatted_price')
                         ->weight('medium')
                         ->color('info'),
 

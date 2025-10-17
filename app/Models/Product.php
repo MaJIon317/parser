@@ -60,9 +60,14 @@ class Product extends Model
         return $this->belongsTo(Currency::class);
     }
 
+    public function getConvertPriceAttribute():   ?string
+    {
+        return CurrencyFacade::convert($this->price, $this->currency->code, config('app.currency'));
+    }
+
     public function getFormattedPriceAttribute():   ?string
     {
-        return CurrencyFacade::format($this->price, $this->currency);
+        return CurrencyFacade::format($this->convert_price);
     }
 
     public function getImagePathsAttribute(): array

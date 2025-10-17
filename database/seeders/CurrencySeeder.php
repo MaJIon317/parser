@@ -33,6 +33,10 @@ class CurrencySeeder extends Seeder
                 'code' => 'JPY',
                 'rate' => 0.006589,
             ],
+            [
+                'code' => 'CHF',
+                'rate' => 0.7913,
+            ],
         ]);
     }
 }

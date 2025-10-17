@@ -26,7 +26,8 @@ class LoggingsTable
                 TextColumn::make('status')
                     ->searchable(),
                 TextColumn::make('message')
-                    ->searchable(),
+                    ->searchable()
+                    ->wrap(),
                 TextColumn::make('started_at')
                     ->dateTime()
                     ->sortable(),

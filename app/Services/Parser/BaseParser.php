@@ -84,16 +84,17 @@ abstract class BaseParser
             $products = $result['products'] ?? [];
             $pages = $result['pages'] ?? [];
 
-            $this->parseProducts($products);
+            $result = $this->parseProducts($products);
 
             foreach ($pages as $page) {
                 ParseDonorJob::dispatch($this->donor, $page)
                     ->onQueue('high');
             }
 
-            $this->finishLog('success', 'The parsing of the catalog pages has been completed', [
+            $this->finishLog($result['skipped'] ? 'error' : 'success', 'The parsing of the catalog pages has been completed', [
                 'pages' => count($pages),
                 'products' => count($products),
+                ...$result
             ]);
         } catch (\Throwable $e) {
             $this->failLog($e->getMessage(), [

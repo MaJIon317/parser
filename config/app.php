@@ -91,6 +91,8 @@ return [
         'ja' => 'Japan',
     ],
 
+    'currency' => env('APP_CURRENCY', 'USD'),
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Observers\CurrencyObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+#[ObservedBy([CurrencyObserver::class])]
 class Currency extends Model
 {
     /** @use HasFactory<\Database\Factories\CurrencyFactory> */
@@ -12,6 +15,5 @@ class Currency extends Model
 
     protected $fillable = [
         'code',
-        'rate',
     ];
 }
