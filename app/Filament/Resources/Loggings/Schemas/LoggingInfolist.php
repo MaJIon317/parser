@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Loggings\Schemas;
 
 use Filament\Infolists\Components\KeyValueEntry;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Arr;
 
 class LoggingInfolist
 {
@@ -33,26 +35,21 @@ class LoggingInfolist
                         TextEntry::make('created_at')->dateTime('Y-m-d H:i:s')->label('Создан'),
                     ])->columns(2),
 
-                Section::make('Context')
-                    ->collapsible()
-                    ->schema([
-                        KeyValueEntry::make('context')
-                            ->state(function ($record) {
-                                $details = [];
+                KeyValueEntry::make('detail')
+                    ->state(function ($record) {
+                        $items = Arr::dot($record->context ?? []);
 
-                                foreach ($record->context ?? [] as $detailKey => $detailValue) {
-                                    if (!is_array($detailValue)) {
-                                        $details[$detailKey] = $detailValue;
-                                    } else {
-                                        foreach ($detailValue as $detailValueKey => $detailValueValue) {
-                                            $details["[{$detailKey}] {$detailValueKey}"] = is_array($detailValueValue) ? json_encode($detailValueValue) : $detailValueValue;
-                                        }
-                                    }
-                                }
+                        foreach ($items as $key => $value) {
+                            if (is_array($value) || is_object($value)) {
+                                $items[$key] = json_encode($value, JSON_UNESCAPED_UNICODE);
+                            } else {
+                                $items[$key] = (string) ($value ?? '');
+                            }
+                        }
 
-                                return $details;
-                            }),
-                    ]),
+                        return $items;
+                    }),
+
             ]);
     }
 }

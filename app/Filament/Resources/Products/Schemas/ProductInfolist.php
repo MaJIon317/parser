@@ -11,6 +11,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
+use Illuminate\Support\Arr;
 
 class ProductInfolist
 {
@@ -93,18 +94,6 @@ class ProductInfolist
 
     protected static function detailArray(?array $array = null): array
     {
-        $details = [];
-
-        foreach ($array ?? [] as $detailKey => $detailValue) {
-            if (!is_array($detailValue)) {
-                $details[$detailKey] = $detailValue;
-            } else {
-                foreach ($detailValue as $detailValueKey => $detailValueValue) {
-                    $details["[{$detailKey}] {$detailValueKey}"] = is_array($detailValueValue) ? json_encode($detailValueValue) : $detailValueValue;
-                }
-            }
-        }
-
-        return $details;
+        return Arr::dot($array);
     }
 }
