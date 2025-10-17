@@ -39,12 +39,14 @@ class ProductsTable
                 TextColumn::make('url')
                     ->formatStateUsing(fn ($state) => 'LINK')
                     ->url(fn ($state) => $state)
-                    ->openUrlInNewTab(),
+                    ->openUrlInNewTab()
+                    ->searchable(),
                 TextColumn::make('images')
                     ->state(fn($record) => count($record->images ?? [])),
                 TextColumn::make('detail.attributes')
                     ->label('Attributes')
-                    ->state(fn($record) => count($record->detail['attributes'] ?? [])),
+                    ->state(fn($record) => count($record->detail['attributes'] ?? []))
+                    ->searchable(),
                 TextColumn::make('last_parsing')
                     ->dateTime(),
                 TextColumn::make('errors')
