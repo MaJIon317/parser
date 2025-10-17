@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Donors\Pages;
 
 use App\Filament\Resources\Donors\DonorResource;
 use App\Jobs\ParseDonorJob;
+use App\Jobs\ParseProductJob;
 use App\Models\Donor;
 use App\Services\Parser;
 use Filament\Actions\Action;
@@ -39,6 +40,23 @@ class EditDonor extends EditRecord
                     ]);
 
                     ParseDonorJob::dispatchSync($record);
+
+                    Notification::make()
+                        ->title(__('Sent for processing'))
+                        ->body(__('Please wait for the notification.'))
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('customActionAllProduct')
+                ->label(__('Parse App Product'))
+                ->icon('heroicon-o-inbox-arrow-down')
+                ->tooltip('The product data will be downloaded from the donor\'s website.')
+                ->action(function (Donor $record) {
+
+                    foreach ($record->products as $product) {
+                        ParseProductJob::dispatch($product);
+                    }
 
                     Notification::make()
                         ->title(__('Sent for processing'))
