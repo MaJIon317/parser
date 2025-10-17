@@ -36,6 +36,14 @@ class ProductWidget extends StatsOverviewWidget
                 label: 'Processed today',
                 value: Product::whereDate('last_parsing', '>=', now()->subDay())->count(),
             ),
+            StatsOverviewWidget\Stat::make(
+                label: 'Products with errors',
+                value: Product::whereNotNull('errors')->where('errors', '!=', '[]')->count(),
+            ),
+            StatsOverviewWidget\Stat::make(
+                label: 'Products without images',
+                value: Product::whereNotNull('images')->where('images', '!=', '[]')->count(),
+            ),
         ];
     }
 }
