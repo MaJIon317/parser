@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use AchyutN\FilamentLogViewer\FilamentLogViewer;
+use App\Filament\Pages\HealthCheckResults;
 use App\Filament\Widgets\ProductWidget;
 use App\Filament\Widgets\QueueWidget;
 use Filament\Http\Middleware\Authenticate;
@@ -21,6 +23,7 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use ShuvroRoy\FilamentSpatieLaravelHealth\FilamentSpatieLaravelHealthPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -43,6 +46,11 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 QueueWidget::class,
                 ProductWidget::class,
+            ])
+            ->plugins([
+                FilamentLogViewer::make(),
+                FilamentSpatieLaravelHealthPlugin::make()
+                    ->usingPage(HealthCheckResults::class)
             ])
             ->middleware([
                 EncryptCookies::class,
