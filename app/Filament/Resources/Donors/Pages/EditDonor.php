@@ -29,10 +29,10 @@ class EditDonor extends EditRecord
                     dd($test);
                 }),
 
-            Action::make('customAction')
+            Action::make('parse')
                 ->label(__('Parse'))
                 ->icon('heroicon-o-inbox-arrow-down')
-                ->tooltip('The product data will be downloaded from the donor\'s website.')
+                ->tooltip('Parses all the donor\'s pages.')
                 ->action(function (Donor $record) {
 
                     $record->products()->update([
@@ -51,12 +51,16 @@ class EditDonor extends EditRecord
             Action::make('customActionAllProduct')
                 ->label(__('Parse App Product'))
                 ->icon('heroicon-o-inbox-arrow-down')
-                ->tooltip('The product data will be downloaded from the donor\'s website.')
+                ->tooltip('Sends all the donor\'s products to the queue.')
                 ->action(function (Donor $record) {
 
-                    foreach ($record->products as $product) {
-                        ParseProductJob::dispatch($product);
-                    }
+                    $record->products()
+                        ->select('id') // минимум полей
+                        ->chunk(300, function ($products) {
+                            foreach ($products as $product) {
+                                ParseProductJob::dispatch($product);
+                            }
+                        });
 
                     Notification::make()
                         ->title(__('Sent for processing'))

@@ -12,6 +12,7 @@ use Filament\Schemas\Schema;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 
 class ProductInfolist
 {
@@ -27,7 +28,7 @@ class ProductInfolist
             ImageEntry::make('images')
                 ->state(function ($record) {
                     return collect($record->images ?? [])
-                        ->map(fn ($path) => asset($path))
+                        ->map(fn ($path) => Storage::url($path))
                         ->toArray();
                 })
                 ->columnSpanFull()
@@ -94,6 +95,6 @@ class ProductInfolist
 
     protected static function detailArray(?array $array = null): array
     {
-        return Arr::dot($array);
+        return Arr::dot($array ?? []) ?? [];
     }
 }

@@ -11,10 +11,18 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         return Arr::except([
+            /*
             ...$this->isTranslation(
                 in_array($request->input('locale'), array_keys(config('app.locales'))) ? $request->input('locale') : null,
             ),
+            */
+            'uuid' => $this->uuid,
+            'code' => $this->code,
+            'url' => $this->url,
+            'detail' => $this->detail,
+            'images' => $this->images,
             'object' => $this->category?->name,
+            'price' => $this->price,
             'currency' => $this->currency?->code,
         ], [
             'id',

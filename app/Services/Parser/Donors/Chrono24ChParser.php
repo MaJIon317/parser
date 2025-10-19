@@ -158,7 +158,9 @@ class Chrono24ChParser extends BaseParser
             ];
         }
 
-        $name = $metaData['data']["similarProduct-{$metaData['data']['watchId']}"]['productName'] ?? null;
+        $watchId = $metaData['data']['watchId'] ?? $metaData['data']['dpWatchId'];
+
+        $name = $metaData['data']["similarProduct-{$watchId}"]['productName'] ?? null;
 
         if (!$name && $h1 = $dom->query('//h1')?->item(0)?->textContent) {
 

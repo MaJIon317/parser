@@ -15,7 +15,7 @@ class ImageDownloader
         $path = "{$uuid}/{$filename}";
 
         if (Storage::exists($path)) {
-            return Storage::url($path);
+            return Storage::path($path);
         }
 
         $content = file_get_contents($url);
@@ -23,6 +23,6 @@ class ImageDownloader
 
         Storage::put($path, $content);
 
-        return Storage::url($path);
+        return Storage::path($path);
     }
 }
