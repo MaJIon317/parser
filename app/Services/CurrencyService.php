@@ -56,11 +56,7 @@ class CurrencyService
         $cacheKey = "currency_rate:{$fromCurrency}_{$toCurrency}";
 
         return Cache::remember($cacheKey, now()->addHour(), function () use ($fromCurrency, $toCurrency) {
-            $rate = (new CurrencyRateService)->rate($fromCurrency, $toCurrency);
-
-            Log::warning("Couldn\'t get the currency exchange rate: {$fromCurrency}_{$toCurrency}");
-
-            return $rate;
+            return (new CurrencyRateService)->rate($fromCurrency, $toCurrency);
         });
     }
 
@@ -74,7 +70,7 @@ class CurrencyService
      */
     public function convert(float $amount, string $fromCurrency, string $toCurrency = 'USD'): ?float
     {
-        $rate = $this->rate($toCurrency, $fromCurrency);
+        $rate = $this->rate($fromCurrency, $toCurrency);
 
         if ($rate === null) return null;
 

@@ -147,7 +147,7 @@ class VipstationComParser extends BaseParser
                     $itemInfo['ST_WEB_CATALOG'] ?? null,
                     $itemInfo['ST_WEB_SUBCATALOG'] ?? null
                 ])),
-                'description' => $itemInfo['ST_ADVERTISING'] ?? null,
+                'description' => $this->cleanHtmlDescription($itemInfo['ST_ADVERTISING'] ?? ''),
                 'sku' => $itemInfo['ST_CODE'] ?? null,
                 'attributes' => !empty($itemInfo['ST_PRODETAILS'])
                     ? array_column($itemInfo['ST_PRODETAILS'], 'ST_VALUE', 'ST_KEY')
@@ -155,5 +155,28 @@ class VipstationComParser extends BaseParser
             ]),
             'images' => $images ?? [],
         ];
+    }
+
+    /**
+     * Очищает описание товара от лишнего HTML и рекламного мусора.
+     */
+    protected function cleanHtmlDescription(string $html): string
+    {
+        // 1️⃣ Удаляем внешние <span> в начале и конце
+        $html = preg_replace('/^<span[^>]*>/i', '', $html);
+        $html = preg_replace('/<\/span>$/i', '', $html);
+
+        // 2️⃣ Удаляем пустые теги <h2> и <span> внутри них
+        $html = preg_replace('/<h2>\s*<span[^>]*>\s*<\/span>\s*<\/h2>/i', '', $html);
+
+        // 3️⃣ Удаляем специальные символы, хештеги и лишние <br> в конце
+        $html = preg_replace('/(?:<br\s*\/?>\s*)*(?:※<br\s*\/?>.*|#.*)<$/s', '', $html);
+
+        // 4️⃣ Убираем лишние <br> в начале и конце
+        $html = preg_replace('/^(<br\s*\/?>\s*)+/i', '', $html);
+        $html = preg_replace('/(\s*<br\s*\/?>)+$/i', '', $html);
+
+        // 5️⃣ Тримим пробелы по бокам
+        return trim($html);
     }
 }

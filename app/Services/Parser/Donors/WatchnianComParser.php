@@ -226,8 +226,20 @@ class WatchnianComParser extends BaseParser
             }
         }
 
+        $storeNode = $dom->query('//div[contains(@class,"list-name")]/a')?->item(0);
+        $store_id = null;
+
+        if ($storeNode && $storeNode->hasAttribute('href')) {
+            $href = $storeNode->getAttribute('href');
+            // Вытаскиваем store_id из URL
+            if (preg_match('#/store/([^/]+)/?#', $href, $matches)) {
+                $store_id = $matches[1];
+            }
+        }
+
         return [
             'detail' => [
+                'store_id' => $store_id,
                 'name' => $name,
                 'description' => trim($description),
                 'category' => $category,

@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Observers\TranslationObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
+#[ObservedBy([TranslationObserver::class])]
 class Translation extends Model
 {
     protected $fillable = [

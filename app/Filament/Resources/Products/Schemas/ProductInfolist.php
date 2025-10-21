@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Services\ProductWithdrawalService;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Schemas\Components\Grid;
@@ -77,17 +78,20 @@ class ProductInfolist
                 ->collapsible(),
 
             Tabs::make('Detail')
-                ->tabs([
-                    Tab::make('Default')
-                        ->schema([
-
-                                KeyValueEntry::make('detail')
-                                    ->label('')
-                                    ->state(function ($record) {
-                                        return static::detailArray($record->detail);
+                ->tabs(
+                    collect(array_merge([config('app.locale') => ucfirst(config('app.locale'))], config('app.locales')))->map(function ($label, $locale) {
+                        return Tab::make($label)
+                            ->schema([
+                                KeyValueEntry::make("detail_{$locale}") // можно хранить переводы в разных полях
+                                ->label('')
+                                    ->state(function ($record) use ($locale) {
+                                        return $record->detail ? static::detailArray((new ProductWithdrawalService(
+                                            $record->donor->setting['language'] ?? config('app.locale'), $locale)
+                                                    )->getTranslatedProduct($record->toArray() ?? [])) : [];
                                     }),
-                        ])
-                ])
+                            ]);
+                    })->toArray()
+                )
                 ->columnSpanFull(),
 
         ]);
