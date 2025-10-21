@@ -26,10 +26,6 @@ class CurrencySeeder extends Seeder
                 'rate' => 0.1286,
             ],
             [
-                'code' => 'RMB',
-                'rate' => 0.1401,
-            ],
-            [
                 'code' => 'JPY',
                 'rate' => 0.006589,
             ],
