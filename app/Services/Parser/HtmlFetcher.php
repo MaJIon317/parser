@@ -263,6 +263,7 @@ class HtmlFetcher
     protected function fetchWithHeadlessBrowser(string $url): ?string
     {
         $nodeScript = base_path('node/fetch.cjs');
+
         if (!file_exists($nodeScript)) {
             Log::error("HtmlFetcher: node script not found at {$nodeScript}");
             return null;
