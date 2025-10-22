@@ -218,8 +218,19 @@ class Chrono24ChParser extends BaseParser
             $images = array_filter($images); // удаляем null
         }
 
+        // 5. Ищем customerId из ссылки продавца
+        $store_id = null;
+        $customerLinkNode = $dom->query('//a[contains(@href, "customerId=")]')?->item(0);
+        if ($customerLinkNode) {
+            $href = $customerLinkNode->getAttribute('href');
+            if (preg_match('/customerId=(\d+)/', $href, $m)) {
+                $store_id = $m[1];
+            }
+        }
+
         // 4. Детали продукта
         $detail = [
+            'store_id' => $store_id,
             'name' => $name,
             'description' => $description,
             'attributes' => $this->parseAttributesTable($dom),
