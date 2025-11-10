@@ -11,7 +11,10 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class ProductsTable
@@ -30,6 +33,9 @@ class ProductsTable
                     ->searchable()
                     ->sortable()
                     ->wrap(),
+                TextColumn::make('code')
+                    ->sortable()
+                    ->searchable(),
                 TextColumn::make('formatted_price')
                     ->sortable(),
                 TextColumn::make('status')
@@ -54,8 +60,41 @@ class ProductsTable
                     ->wrap(),
             ])
             ->filters([
-                //
+                Filter::make('is_images')
+                    ->label(__('With images'))
+                    ->toggle()
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('images')
+                                                    ->orWhere('images', '!=', '{}')),
+
+                Filter::make('errors')
+                    ->label(__('With errors'))
+                    ->toggle()
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('errors')
+                        ->orWhere('errors', '!=', '{}')),
+
+                SelectFilter::make('status')
+                    ->options(function () {
+                        $statuses = [];
+
+                        foreach (Product::select('status')->distinct()->pluck('status') as $status) {
+                            $statuses[$status] = str($status)->headline();
+                        }
+
+                        return $statuses;
+                    }),
+
+                SelectFilter::make('parsing_status')
+                    ->options(function () {
+                        $statuses = [];
+
+                        foreach (Product::select('parsing_status')->distinct()->pluck('parsing_status') as $status) {
+                            $statuses[$status] = str($status)->headline();
+                        }
+
+                        return $statuses;
+                    }),
             ])
+            ->deferFilters(false)
             ->recordActions([
 
                 Action::make('customAction')
@@ -91,6 +130,7 @@ class ProductsTable
 
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->poll('20s');
     }
 }

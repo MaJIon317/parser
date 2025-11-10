@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('code')->index(); // Уникальный код внутри донора, по которому находим товар
             $table->string('url')->nullable();
             $table->decimal('price', 20, 8)->nullable();
-            $table->unsignedBigInteger('currency_id');
+            $table->unsignedBigInteger('currency_id')->nullable();
             $table->json('detail')->nullable();
             $table->json('images')->nullable();
             $table->string('parsing_status')->default('new');

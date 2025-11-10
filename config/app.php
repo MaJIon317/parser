@@ -89,6 +89,7 @@ return [
         'fr' => 'French',
         'ru' => 'Russian',
         'ja' => 'Japan',
+        'de' => 'German',
     ],
 
     'currency' => env('APP_CURRENCY', 'USD'),

@@ -45,7 +45,7 @@ class ProductSaver
 
             $currency_id = $this->currencies->where('code', $data['currency'] ?? null)->first()?->id;
 
-            if (!empty($data['price'])) {
+            if (!empty($data['price']) && !empty($data['status'])) {
                 $product = Product::updateOrCreate(
                     [
                         'donor_id' => $donor->id,
@@ -56,9 +56,11 @@ class ProductSaver
                         'category_id' => $data['category_id'],
                         'price' => $data['price'],
                         'currency_id' => $currency_id,
-                        'status' => isset($data['status']) && !$data['status'] ? 'inactive' : 'active',
+                        'status' => 'active',
                     ]
                 );
+
+                $saved[] = $product;
             } else {
                 // Только обновление существующего товара
                 Product::where('donor_id', $donor->id)
@@ -67,8 +69,6 @@ class ProductSaver
                         'status' => 'inactive',
                     ]);
             }
-
-            $saved[] = $product;
         }
 
         return compact('saved', 'skipped');

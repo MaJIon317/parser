@@ -8,6 +8,7 @@ use App\Jobs\ParseProductJob;
 use App\Models\Donor;
 use App\Services\Parser;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -29,45 +30,71 @@ class EditDonor extends EditRecord
                     dd($test);
                 }),
 
-            Action::make('parse')
-                ->label(__('Parse'))
-                ->icon('heroicon-o-inbox-arrow-down')
-                ->tooltip('Parses all the donor\'s pages.')
-                ->action(function (Donor $record) {
+            ActionGroup::make([
 
-                    $record->products()->update([
-                        'parsing_status' => 'new'
-                    ]);
+                    Action::make('parse') // Парсим страницы каталога донора
+                        ->label(__('Parse'))
+                        ->tooltip('Parses all the donor\'s pages.')
+                        ->action(function (Donor $record) {
 
-                    ParseDonorJob::dispatchSync($record);
+                            $record->products()->update([
+                                'parsing_status' => 'new'
+                            ]);
 
-                    Notification::make()
-                        ->title(__('Sent for processing'))
-                        ->body(__('Please wait for the notification.'))
-                        ->success()
-                        ->send();
-                }),
+                            ParseDonorJob::dispatchSync($record);
 
-            Action::make('customActionAllProduct')
-                ->label(__('Parse App Product'))
-                ->icon('heroicon-o-inbox-arrow-down')
-                ->tooltip('Sends all the donor\'s products to the queue.')
-                ->action(function (Donor $record) {
+                            Notification::make()
+                                ->title(__('Sent for processing'))
+                                ->body(__('Please wait for the notification.'))
+                                ->success()
+                                ->send();
+                        }),
 
-                    $record->products()
-                        ->select('id') // минимум полей
-                        ->chunk(300, function ($products) {
-                            foreach ($products as $product) {
-                                ParseProductJob::dispatch($product);
-                            }
-                        });
+                    Action::make('customActionAllProduct') // Обновляем все товары
+                        ->label(__('Product parsing'))
+                        ->tooltip('Sends all the donor\'s products to the download queue.')
+                        ->action(function (Donor $record) {
 
-                    Notification::make()
-                        ->title(__('Sent for processing'))
-                        ->body(__('Please wait for the notification.'))
-                        ->success()
-                        ->send();
-                }),
+                            $record->products()
+                                ->select('id') // минимум полей
+                                ->chunk(300, function ($products) {
+                                    foreach ($products as $product) {
+                                        ParseProductJob::dispatch($product);
+                                    }
+                                });
+
+                            Notification::make()
+                                ->title(__('Sent for processing'))
+                                ->body(__('Please wait for the notification.'))
+                                ->success()
+                                ->send();
+                        }),
+
+                    Action::make('customActionAllPriceProduct') // Обновляем только цены
+                        ->label(__('Update prices for all products'))
+                            ->tooltip('Sends all the donor\'s products to the queue for the price update.')
+                            ->action(function (Donor $record) {
+
+                                $record->products()->update([
+                                    'parsing_status' => 'price'
+                                ]);
+
+                                $record->products()
+                                    ->select('id') // минимум полей
+                                    ->chunk(300, function ($products) {
+                                        foreach ($products as $product) {
+                                            ParseProductJob::dispatch($product);
+                                        }
+                                    });
+
+                                Notification::make()
+                                    ->title(__('Sent for processing'))
+                                    ->body(__('Please wait for the notification.'))
+                                    ->success()
+                                    ->send();
+                            }),
+
+                ])
         ];
     }
 }

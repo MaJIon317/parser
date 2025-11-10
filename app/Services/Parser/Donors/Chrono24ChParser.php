@@ -94,12 +94,15 @@ class Chrono24ChParser extends BaseParser
             foreach ($graph as $node) {
                 if (($node['@type'] ?? '') === 'AggregateOffer' && !empty($node['offers'])) {
                     foreach ($node['offers'] as $offer) {
+                        $url = $offer['url'] ?? null;
+                        if (!$url) continue;
+
                         $products[] = [
-                            'code' => $this->extractChrono24Id($offer['url'] ?? ''), // Chrono24 не дает артикул → генерируем
+                            'code' => $this->extractChrono24Id($url), // Chrono24 не дает артикул → генерируем
                             'category_id' => $category_id,
                             'price' => $offer['price'] ?? null,
                             'currency' => 'CHF',
-                            'url' => $offer['url'] ?? null,
+                            'url' => $url,
                             'status' => (str_contains($offer['availability'] ?? '', 'InStock')) ? 1 : 0,
                         ];
                     }

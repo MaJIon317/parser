@@ -18,10 +18,10 @@ return new class extends Migration
             $table->string('type')->index();
 
             // Какой донор (сайт)
-            $table->unsignedSmallInteger('donor_id')->nullable();
+            $table->unsignedBigInteger('donor_id')->nullable();
 
             // Какой товар (если лог парсинга конкретного товара)
-            $table->unsignedSmallInteger('product_id')->nullable();
+            $table->unsignedBigInteger('product_id')->nullable();
 
             // URL, который парсили
             $table->text('url')->nullable();

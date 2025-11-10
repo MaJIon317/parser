@@ -1,0 +1,133 @@
+<?php
+
+namespace App\Filament\Resources\Webhooks;
+
+use App\Filament\Resources\Webhooks\Pages\ManageWebhooks;
+use App\Jobs\WebhookCallJob;
+use App\Models\Product;
+use App\Models\Webhook;
+use App\Services\WebhookService;
+use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ToggleColumn;
+use Filament\Tables\Table;
+
+class WebhookResource extends Resource
+{
+    protected static ?string $model = Webhook::class;
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                TextInput::make('name')
+                    ->required(),
+                TextInput::make('url')
+                    ->url()
+                    ->required(),
+                TextInput::make('secret')
+                    ->minValue(15)
+                    ->required(),
+                Select::make('locale')
+                    ->options(function () {
+                        return array_merge([config('app.locale') => str(config('app.locale'))->headline()], config('app.locales'));
+                    })
+                    ->default(config('app.locale'))
+                    ->required(),
+                Select::make('currency_id')
+                    ->relationship('currency', 'code')
+                    ->required(),
+                Toggle::make('status'),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('name')
+                    ->searchable(),
+                TextColumn::make('url')
+                    ->searchable(),
+                TextColumn::make('locale')
+                    ->searchable(),
+                TextColumn::make('currency.code')
+                    ->searchable(),
+                ToggleColumn::make('status'),
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('updated_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                //
+            ])
+            ->recordActions([
+                Action::make('send')
+                    ->action(function () {
+                        $products = Product::where([
+                            ['status', 'active'],
+                            ['parsing_status', 'completed'],
+                        ])->get();
+
+                        $products->each(function (Product $product) {
+                            WebhookCallJob::dispatch($product);
+                        });
+
+                        Notification::make()
+                            ->title(__('250 items have been sent for processing'))
+                            ->success()
+                            ->send();
+                    }),
+
+                Action::make('ping')
+                    ->label(__('Ping'))
+                    ->color('warning')
+                    ->action(function (Webhook $record, WebhookService $webhookService) {
+                        $ping = $webhookService->ping($record);
+
+                        $notification = Notification::make()
+                            ->title($ping ? __('Verification completed successfully') : __('Ping failed'));
+
+                        if ($ping) {
+                            $notification->success();
+                        } else $notification->danger();
+
+                        $notification->send();
+                    }),
+                EditAction::make(),
+                DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ManageWebhooks::route('/'),
+        ];
+    }
+}

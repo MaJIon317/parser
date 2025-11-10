@@ -76,7 +76,7 @@ class WatchnianComParser extends BaseParser
         $dom = new DomParser($html);
         $products = [];
 
-        $items = $dom->query('//ul[contains(@class,"block-thumbnail-t")]/li/dl[contains(@class,"block-thumbnail-t--goods")]');
+        $items = $dom->query('//ul[contains(@class,"block-thumbnail-t")]/li');
 
         foreach ($items as $item) {
             $a = $dom->query('.//a', $item)?->item(0);
@@ -86,15 +86,16 @@ class WatchnianComParser extends BaseParser
 
             $code = $this->extractProductCode($url);
 
-            $priceNode = $dom->query('.//div[contains(@class,"block-thumbnail-t--price")]/span[contains(@class,"num")]', $item)?->item(0);
+            $priceNode = $dom->query('.//span[contains(@class,"num")]', $item)?->item(0);
             $price = $priceNode ? (float) str_replace(',', '', $priceNode->textContent) : null;
 
             $products[] = [
                 'code' => $code,
                 'category_id' => $category_id,
-                'url' => $url,
                 'price' => $price,
                 'currency' => 'JPY',
+                'url' => $url,
+                'status' => true, // Найди способ определять
             ];
         }
 

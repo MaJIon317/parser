@@ -50,6 +50,8 @@ class CurrencyService
      */
     public function rate(string $fromCurrency, ?string $toCurrency = null): ?float
     {
+        if(!$fromCurrency) return null;
+
         $fromCurrency = strtoupper($fromCurrency);
         $toCurrency = strtoupper($toCurrency ?? config('app.currency'));
 
