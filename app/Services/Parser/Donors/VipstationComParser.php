@@ -4,10 +4,21 @@ namespace App\Services\Parser\Donors;
 
 use App\Services\Parser\BaseParser;
 use App\Services\Parser\DomParser;
+use Illuminate\Support\Facades\Cache;
 
+/*
+ * Парсинг страницы каталога работает так:
+ * Для каждой страницы создается ключ в кэше: vipstation_failed_page_{debugPath}.
+ * Если парсинг страницы не дал товаров → incrementFailedPage() увеличивает счетчик.
+ * Если товаров нет 5 раз подряд, метод isPageBlocked() вернёт true → страница и последующие будут пропускаться.
+ * При успешной загрузке и парсинге → resetFailedPage() удаляет ключ из кэша.
+ * Кэш хранится 1 час, после чего счетчик автоматически сбросится.
+ */
 class VipstationComParser extends BaseParser
 {
     protected string $baseUrl = 'https://www.vipstation.com.hk/';
+    protected int $maxFailedPages = 1;
+    protected int $cacheTtl = 3600; // 1 час
 
     public function pages(): array
     {
@@ -15,17 +26,26 @@ class VipstationComParser extends BaseParser
         $allProducts = [];
 
         foreach ($this->donor->pages ?? [] as $page) {
+            $debugPath = md5($page['path']);
+
+            if ($this->isPageBlocked($debugPath)) {
+                continue; // пропускаем страницы с превышенным лимитом
+            }
+
             $html = $this->fetcher->fetch($page['path']);
 
-            if (!$html) continue;
+            if (!$html) {
+                $this->incrementFailedPage($debugPath);
+                continue;
+            }
 
-            $dom = new DomParser($html);
-
-            // 🧩 1. Парсим товары с первой страницы
+            // Парсим товары с первой страницы
             $products = $this->extractProductsFromHtml($html, $page['category_id']);
             $allProducts = array_merge($allProducts, $products);
 
-            // 🧭 2. Ищем JS с информацией о страницах
+            $dom = new DomParser($html);
+
+            // Ищем JS с информацией о страницах
             $scriptNodes = $dom->query('//script[contains(@type, "text/javascript")]');
             foreach ($scriptNodes as $script) {
                 $content = $script->nodeValue;
@@ -49,6 +69,10 @@ class VipstationComParser extends BaseParser
                                 $allPages[] = [
                                     'path' => $nextPage,
                                     'category_id' => $page['category_id'],
+                                    'debug' => [
+                                        'path' => md5($page['path']),
+                                        'page' => $i,
+                                    ],
                                 ];
                             }
                         }
@@ -65,12 +89,28 @@ class VipstationComParser extends BaseParser
 
     public function products(array $page): array
     {
-        $html = $this->fetcher->fetch($page['path']);
-        if (!$html) {
+        $debugPath = $page['debug']['path'];
+
+        if ($this->isPageBlocked($debugPath)) {
             return [];
         }
 
-        return $this->extractProductsFromHtml($html, $page['category_id']);
+        $html = $this->fetcher->fetch($page['path']);
+        if (!$html) {
+            $this->incrementFailedPage($debugPath);
+            return [];
+        }
+
+        $products = $this->extractProductsFromHtml($html, $page['category_id']);
+
+        if (empty($products) || empty(array_filter($products, fn($item) => $item['status'] === true))) {
+            $this->incrementFailedPage($debugPath);
+            dump(count($products), $debugPath);
+        } else {
+            $this->resetFailedPage($debugPath);
+        }
+
+        return $products;
     }
 
     private function extractProductsFromHtml(string $html, int $category_id): array
@@ -97,7 +137,7 @@ class VipstationComParser extends BaseParser
                                 'price' => $item['NO_PRICE'] ?? null,
                                 'currency' => $item['ST_CURR'] ?: 'HKD',
                                 'url' => "{$this->baseUrl}en/item/{$item['ST_WEB_NAME']}.html",
-                                'status' => $item['NO_ISSTOCK'],
+                                'status' => !empty($item['NO_ISSTOCK']),
                             ];
                         }
                     }
@@ -178,5 +218,31 @@ class VipstationComParser extends BaseParser
 
         // 5️⃣ Тримим пробелы по бокам
         return trim($html);
+    }
+
+    protected function cacheKey(string $debugPath): string
+    {
+        return "vipstation_failed_page_{$debugPath}";
+    }
+
+    protected function incrementFailedPage(string $debugPath): void
+    {
+        $key = $this->cacheKey($debugPath);
+
+        if (!Cache::has($key)) {
+            Cache::put($key, 1, $this->cacheTtl);
+        } else {
+            Cache::increment($key);
+        }
+    }
+
+    protected function resetFailedPage(string $debugPath): void
+    {
+        Cache::forget($this->cacheKey($debugPath));
+    }
+
+    protected function isPageBlocked(string $debugPath): bool
+    {
+        return Cache::get($this->cacheKey($debugPath), 0) >= $this->maxFailedPages;
     }
 }

@@ -57,6 +57,7 @@ class ProductSaver
                         'price' => $data['price'],
                         'currency_id' => $currency_id,
                         'status' => 'active',
+                        'errors' => null,
                     ]
                 );
 

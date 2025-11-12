@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Tables;
 
 use App\Jobs\ParseProductJob;
+use App\Jobs\WebhookCallJob;
 use App\Models\Product;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -54,7 +55,8 @@ class ProductsTable
                     ->state(fn($record) => count($record->detail['attributes'] ?? []))
                     ->searchable(),
                 TextColumn::make('last_parsing')
-                    ->dateTime(),
+                    ->dateTime()
+                    ->sortable(),
                 TextColumn::make('errors')
                     ->words(10)
                     ->wrap(),
@@ -96,6 +98,19 @@ class ProductsTable
             ])
             ->deferFilters(false)
             ->recordActions([
+
+                Action::make('Send a hook')
+                    ->color('warning')
+                    ->icon('heroicon-o-rocket-launch')
+                    ->action(function (Product $record) {
+                        WebhookCallJob::dispatchSync($record);
+
+                        Notification::make()
+                            ->title(__('Successfully sent'))
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn($record) => !empty($record['images'])),
 
                 Action::make('customAction')
                     ->label(__('Parse'))

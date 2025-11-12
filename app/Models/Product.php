@@ -70,6 +70,11 @@ class Product extends Model
         return CurrencyFacade::format($this->convert_price);
     }
 
+    public function priceConvert(string $currency_code)
+    {
+        return CurrencyFacade::convert($this->price, $this->currency->code, $currency_code);
+    }
+
     public function getImagePathsAttribute(): array
     {
         return collect($this->images ?? [])

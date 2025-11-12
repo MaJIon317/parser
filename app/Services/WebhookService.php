@@ -23,7 +23,7 @@ class WebhookService
     }
 
     /**
-     * Пинг вебхука (GET) с подписью.
+     * Пинг вебхука (POST) с подписью.
      *
      * @param Webhook $webhook
      * @return bool
@@ -33,7 +33,7 @@ class WebhookService
         try {
             $webhook->url = $webhook->url . '/ping';
 
-            $response = $this->request($webhook, 'GET');
+            $response = $this->request($webhook, 'POST');
 
             return $response->successful();
         } catch (\Throwable $e) {

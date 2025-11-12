@@ -14,7 +14,6 @@ class CurrencySeeder extends Seeder
      */
     public function run(): void
     {
-        Currency::truncate();
         $currencies = [
             ['code' => 'AED'], ['code' => 'AFN'], ['code' => 'ALL'], ['code' => 'AMD'],
             ['code' => 'AOA'], ['code' => 'ARS'], ['code' => 'AUD'], ['code' => 'AWG'], ['code' => 'AZN'],

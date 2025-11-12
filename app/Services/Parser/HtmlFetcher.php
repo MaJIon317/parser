@@ -6,7 +6,6 @@ use App\Models\Donor;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Psr\SimpleCache\InvalidArgumentException;
 
 class HtmlFetcher
 {
@@ -42,8 +41,6 @@ class HtmlFetcher
         foreach ($proxies as $proxy) {
             $attempts++;
             $proxyStr = $this->proxyManager->proxyToCurlString($proxy);
-
-            Log::info("HtmlFetcher: trying headless fetch for {$url} via proxy {$proxyStr}");
 
             try {
                 $res = $this->runNodeFetcher($url, $proxyStr, $this->globalTimeout);

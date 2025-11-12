@@ -28,6 +28,7 @@ class ParseProductJob implements ShouldQueue
      */
     public function handle(): void
     {
+
         Parser::make($this->product)->parseProduct();
 
     }

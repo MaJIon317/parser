@@ -64,7 +64,24 @@ function getCookieFilePath(domain) {
 function loadCookies(domain) {
     const fp = getCookieFilePath(domain);
     if (!fs.existsSync(fp)) return [];
-    try { return JSON.parse(fs.readFileSync(fp, "utf8")); } catch { return []; }
+    try {
+        const cookies = JSON.parse(fs.readFileSync(fp, "utf8"));
+        const now = Date.now() / 1000;
+        return cookies.filter(c => {
+            if (c.name.startsWith('__cf_') || c.name === 'cf_clearance') return false;
+            return !(c.expires && c.expires < now);
+        });
+    } catch {
+        return [];
+    }
+}
+function cleanCookies(cookies) {
+    const now = Date.now() / 1000;
+    return cookies.filter(c => {
+        if (c.name.startsWith('__cf_') || c.name === 'cf_clearance') return false; // Cloudflare cookies
+        if (c.expires && c.expires < now) return false; // expired
+        return true;
+    });
 }
 function saveCookies(domain, cookies) {
     try {
@@ -100,7 +117,7 @@ async function getBrowser(proxy) {
     if (anonymizedProxyUrl) args.push(`--proxy-server=${anonymizedProxyUrl}`);
 
     browser = await puppeteerExtra.launch({
-        headless: 'new',
+        headless: true,
         args,
         defaultViewport: null,
     });
@@ -235,7 +252,7 @@ async function waitForChallengePass(page, opts = {}) {
         if (iter % reloadEvery === 0) {
             try {
                 console.log('[fetch-server] Попытка периодической перезагрузки');
-                await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(()=>{});
+                await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
             } catch (e) {
                 console.warn('[fetch-server] Перезагрузка не удалась:', e.message);
             }
@@ -251,29 +268,27 @@ async function waitForChallengePass(page, opts = {}) {
 
 // ----------------- trySolveChallenge -----------------
 async function trySolveChallenge(page, targetUrl, opts = {}) {
-    console.time('trySolveChallenge');
-    const { primaryMaxMs = 15000, homeMaxMs = 20000 } = opts;
-
-    let homeUrl = null;
+    const label = 'trySolveChallenge';
+    let timerActive = false;
     try {
-        const u = new URL(targetUrl);
-        homeUrl = `${u.protocol}//${u.hostname}${u.port ? ':' + u.port : ''}/`;
-    } catch (e) {
-        console.warn('[fetch-server] Не удалось вычислить homeUrl:', e.message);
-    }
+        console.time(label);
+        timerActive = true;
 
-    try {
+        const { primaryMaxMs = 15000, homeMaxMs = 20000 } = opts;
+        let homeUrl = null;
+
+        try {
+            const u = new URL(targetUrl);
+            homeUrl = `${u.protocol}//${u.hostname}${u.port ? ':' + u.port : ''}/`;
+        } catch (e) {
+            console.warn('[fetch-server] Не удалось вычислить homeUrl:', e.message);
+        }
+
         const ok = await waitForChallengePass(page, { maxWaitMs: primaryMaxMs, pollInterval: 1000, reloadEvery: 6 });
         console.log('[fetch-server] Результат проверки основной страницы:', ok);
-        if (ok) { console.timeEnd('trySolveChallenge'); return true; }
-    } catch (e) {
-        console.warn('[fetch-server] Ошибка проверки основной страницы:', e.message);
-    } finally {
-        console.timeEnd('trySolveChallenge');
-    }
+        if (ok) return true;
 
-    if (homeUrl) {
-        try {
+        if (homeUrl) {
             console.log('[fetch-server] Переход на домашнюю страницу для попытки:', homeUrl);
             await page.goto(homeUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(()=>{});
             const okHome = await waitForChallengePass(page, { maxWaitMs: homeMaxMs, pollInterval: 1200, reloadEvery: 4 });
@@ -283,17 +298,30 @@ async function trySolveChallenge(page, targetUrl, opts = {}) {
                 await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(()=>{});
                 const finalOk = await waitForChallengePass(page, { maxWaitMs: primaryMaxMs, pollInterval: 1000, reloadEvery: 6 });
                 console.log('[fetch-server] Финальная проверка целевой страницы:', finalOk);
-                console.timeEnd('trySolveChallenge');
                 return finalOk;
             }
-        } catch (e) {
-            console.warn('[fetch-server] Ошибка при проверке home:', e.message);
         }
-    }
 
-    console.timeEnd('trySolveChallenge');
-    return false;
+        return false;
+    } catch (e) {
+        console.warn('[fetch-server] Ошибка trySolveChallenge:', e.message);
+        return false;
+    } finally {
+        if (timerActive) console.timeEnd(label);
+    }
 }
+
+function safeUnlink(filePath) {
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`[fetch-server] 🧹 Удалён файл: ${filePath}`);
+        }
+    } catch (e) {
+        console.warn(`[fetch-server] ⚠️ Не удалось удалить ${filePath}: ${e.message}`);
+    }
+}
+
 
 // ----------------- /fetch handler -----------------
 app.post("/fetch", async (req, res) => {
@@ -309,7 +337,8 @@ app.post("/fetch", async (req, res) => {
 
         const domain = new URL(url).hostname;
         const oldCookies = loadCookies(domain);
-        if (oldCookies.length) {
+        const safeCookies = cleanCookies(oldCookies);
+        if (safeCookies.length) {
             try { await page.setCookie(...oldCookies); console.log(`[fetch-server] Загружено ${oldCookies.length} cookies для ${domain}`); } catch (e) { console.warn('[fetch-server] setCookie не удалось:', e.message); }
         }
 
@@ -320,8 +349,16 @@ app.post("/fetch", async (req, res) => {
         let statusCode = 0;
         page.on("response", r => { try { if (r.url() === url) statusCode = r.status(); } catch(e){} });
 
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(()=>{});
-        const solved = await trySolveChallenge(page, url, { primaryMaxMs: 15000, homeMaxMs: 20000 });
+        try {
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        } catch (err) {
+            console.warn('[fetch-server] Ошибка загрузки, очищаем cookies и повторяем...');
+            safeUnlink(getCookieFilePath(domain));
+            await page.deleteCookie(...(await page.cookies()));
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        }
+
+        const solved = await trySolveChallenge(page, url, { primaryMaxMs: 30000, homeMaxMs: 20000 });
         console.log('[fetch-server] trySolveChallenge результат:', solved);
         if (!solved) throw new Error("Cloudflare challenge не пройден");
 
@@ -355,5 +392,14 @@ process.on("SIGINT", async () => {
     try { if (anonymizedProxyUrl) await proxyChain.closeAnonymizedProxy(anonymizedProxyUrl, true); } catch {}
     process.exit(0);
 });
+
+// 🕒 Плановый перезапуск браузера каждые 3 часа
+setInterval(async () => {
+    if (browser) {
+        console.log('[fetch-server] Плановый перезапуск браузера...');
+        try { await browser.close(); } catch {}
+        browser = null;
+    }
+}, 1000 * 60 * 60 * 3); // каждые 3 часа
 
 app.listen(3200, () => console.log("[fetch-server] Слушаем порт 3200"));

@@ -61,11 +61,7 @@ class DonorForm
                                 Select::make('setting.language')
                                     ->label('What language is the data in?')
                                     ->hint('Select if the data is not in the default language.')
-                                    ->options(array_filter(
-                                        config('app.locales', []),
-                                        fn($name, $code) => $code !== config('app.locale'),
-                                        ARRAY_FILTER_USE_BOTH
-                                    )),
+                                    ->options(config('app.locales', [])),
 
                                 Toggle::make('is_active'),
                             ]),

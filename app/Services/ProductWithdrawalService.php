@@ -20,9 +20,17 @@ class ProductWithdrawalService
         $this->toLang = strtolower($toLang ?? $defaultLocale);
     }
 
+    /**
+     * Получаем продукт с переводами и сохраняем все ключи/значения
+     */
     public function getTranslatedProduct(array $productData): array
     {
+        $detail = $productData['detail'] ?? [];
 
+        // 1️⃣ Сохраняем все ключи и значения исходного продукта
+        $this->storeAllKeys($detail);
+
+        // Если языки одинаковые — возвращаем исходные данные
         if (!$this->fromLang || !$this->toLang || ($this->fromLang === $this->toLang)) {
             return [
                 ...$productData,
@@ -30,10 +38,10 @@ class ProductWithdrawalService
             ];
         }
 
-        $detail = $productData['detail'] ?? [];
-
+        // 2️⃣ Получаем переводы
         $translatedDetail = $this->translateDetail($detail);
 
+        // 3️⃣ Применяем переводы к массиву
         $applyTranslations = $this->applyTranslations($detail, $translatedDetail);
 
         return [
@@ -44,31 +52,43 @@ class ProductWithdrawalService
     }
 
     /**
-     * Перевод detail с поддержкой перевода ключей внутри attributes
+     * Сохраняем все ключи и значения рекурсивно
+     */
+    protected function storeAllKeys(array $data, bool $inAttributes = false): void
+    {
+        foreach ($data as $key => $value) {
+            if ($inAttributes) {
+                $this->storeTranslation($key, $key); // ключ как строка
+            }
+
+            if (is_array($value)) {
+                $this->storeAllKeys($value, $inAttributes || $key === 'attributes');
+            } else {
+                $this->storeTranslation($value, $value); // значение на исходном языке
+            }
+        }
+    }
+
+    /**
+     * Переводим detail, используя OpenAI и кэш/базу
      */
     protected function translateDetail(array $detail): array
     {
-        // 1. Флэттим detail в массив объектов: ключи и значения для перевода
         $flat = $this->flattenValues($detail);
-
-        // Ищем переводы
         $translate = $this->splitTranslations($flat);
 
-        // 3. Отправляем недостающие переводы в OpenAI
         if ($translate['to_translate']) {
             try {
                 $systemPrompt = <<<PROMPT
 You are a professional translator AI.
 Translate all entries from "{$this->fromLang}" to "{$this->toLang}".
-Input is a JSON array of objects
+Input is a JSON array of strings.
 
 Rules:
 - Translate all the values
-- Save formatting and HTML.
-- Print a single JSON object where each key is the original string, and the value is its translation.
-- Do not wrap each pair in a separate array.
-- If it was not possible to translate the string, output the string to the value before the translation.
-- DO NOT add additional fields or comments.
+- Keep formatting and HTML
+- Output single JSON object: {"original":"translated", ...}
+- Do not add extra fields
 PROMPT;
 
                 $response = OpenAI::chat()->create([
@@ -90,7 +110,6 @@ PROMPT;
                     Log::warning("Batch translation returned invalid JSON: " . json_last_error_msg());
                     $this->status = false;
                 }
-
             } catch (\Throwable $e) {
                 Log::error("Batch translation failed: {$e->getMessage()}");
                 $this->status = false;
@@ -101,26 +120,18 @@ PROMPT;
     }
 
     /**
-     * Рекурсивно обновляет массив $data, заменяя строки на переводы из $translations.
-     *
-     * @param array $data
-     * @param array $translations  // ['original string' => 'translated string']
-     * @param bool $inAttributes
-     * @return array
+     * Применяем переводы рекурсивно
      */
     protected function applyTranslations(array $data, array $translations, bool $inAttributes = false): array
     {
         $result = [];
 
         foreach ($data as $key => $value) {
-            // Определяем ключ, который нужно перевести (только внутри attributes)
             $newKey = $inAttributes && isset($translations[$key]) ? $translations[$key] : $key;
 
             if (is_array($value)) {
-                // Рекурсивно проходим дальше
                 $result[$newKey] = $this->applyTranslations($value, $translations, $inAttributes || $key === 'attributes');
             } else {
-                // Подставляем перевод, если есть
                 $result[$newKey] = $translations[$value] ?? $value;
             }
         }
@@ -128,17 +139,8 @@ PROMPT;
         return $result;
     }
 
-
     /**
-     * Рекурсивно собирает значения и ключи для перевода.
-     *
-     * Правила:
-     * - Первый уровень ключей игнорируется.
-     * - Для массивов внутри attributes переводим ключи и значения.
-     *
-     * @param array $data
-     * @param bool $inAttributes
-     * @return array
+     * Собираем все текстовые значения и ключи для перевода
      */
     protected function flattenValues(array $data, bool $inAttributes = false): array
     {
@@ -146,14 +148,12 @@ PROMPT;
 
         foreach ($data as $key => $value) {
             if ($inAttributes) {
-                // Внутри attributes: сначала ключ
                 $flat[] = $key;
             }
 
             if (is_array($value)) {
                 $flat = array_merge($flat, $this->flattenValues($value, true));
             } else {
-                // добавляем само значение
                 $flat[] = $value;
             }
         }
@@ -162,10 +162,7 @@ PROMPT;
     }
 
     /**
-     * Разделяет массив на уже переведённые строки и строки для перевода.
-     *
-     * @param array $flat Плоский массив значений/ключей для перевода
-     * @return array ['translated' => [], 'to_translate' => []]
+     * Разделяем уже переведённые строки и новые
      */
     protected function splitTranslations(array $flat): array
     {
@@ -175,13 +172,11 @@ PROMPT;
         foreach ($flat as $value) {
             $cacheKey = $this->cacheKey($value);
 
-            // сначала проверяем кэш
             if (Cache::has($cacheKey['key'])) {
                 $translated[$value] = Cache::get($cacheKey['key']);
                 continue;
             }
 
-            // проверяем БД
             $existing = Translation::where('hash', $cacheKey['hash'])
                 ->where('from_lang', $this->fromLang)
                 ->where('to_lang', $this->toLang)
@@ -191,7 +186,6 @@ PROMPT;
                 $translated[$value] = $existing->target;
                 Cache::put($cacheKey['key'], $existing->target, now()->addMonth());
             } else {
-                // не найдено — нужно переводить
                 $toTranslate[] = $value;
             }
         }
@@ -202,13 +196,23 @@ PROMPT;
         ];
     }
 
+    /**
+     * Сохраняем перевод или исходное значение
+     */
     protected function storeTranslation(string $source, string $target): void
     {
         $cacheKey = $this->cacheKey($source);
 
         Translation::updateOrCreate(
-            ['hash' => $cacheKey['hash'], 'from_lang' => $this->fromLang, 'to_lang' => $this->toLang],
-            ['source' => $source, 'target' => $target]
+            [
+                'hash' => $cacheKey['hash'],
+                'from_lang' => $this->fromLang,
+                'to_lang' => $this->toLang,
+            ],
+            [
+                'source' => $source,
+                'target' => $target,
+            ]
         );
 
         Cache::put($cacheKey['key'], $target, now()->addMonth());

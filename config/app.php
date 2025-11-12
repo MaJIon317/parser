@@ -85,6 +85,7 @@ return [
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     'locales' => [
+        'en' => 'English',
         'es' => 'Spanish',
         'fr' => 'French',
         'ru' => 'Russian',
@@ -92,7 +93,7 @@ return [
         'de' => 'German',
     ],
 
-    'currency' => env('APP_CURRENCY', 'USD'),
+    'currency' => env('APP_CURRENCY', 'CHF'),
 
     /*
     |--------------------------------------------------------------------------

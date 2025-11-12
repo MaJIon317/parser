@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Currencies;
 
 use App\Filament\Resources\Currencies\Pages\ManageCurrencies;
 use App\Models\Currency;
-use App\Services\CurrencyService;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -40,10 +39,9 @@ class CurrencyResource extends Resource
             ->recordTitleAttribute('code')
             ->columns([
                 TextColumn::make('code')
-                    ->searchable(),
-                TextColumn::make('rate')
-                    ->state(fn ($record) => (new CurrencyService)->rate($record->code))
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('rate'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

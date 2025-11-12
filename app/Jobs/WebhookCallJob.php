@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Product;
 use App\Models\Webhook;
 use App\Models\WebhookLog;
+use App\Services\CurrencyService;
 use App\Services\WebhookService;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -20,19 +21,19 @@ class WebhookCallJob implements ShouldQueue
 
     public function __construct(
         public Product $product,
-        public bool $isRetry = false
+        public bool $isRetry = false,
+        public string $type_processing = 'update',
     ) {}
 
     /**
      * @throws Exception
      */
-    public function handle(WebhookService $webhookService): void
+    public function handle(WebhookService $webhookService, CurrencyService $currencyService): void
     {
         $webhooks = Webhook::where('status', true)->get();
 
         foreach ($webhooks as $webhook) {
-            $locale = $webhook->locale ?? config('app.locale');
-            $payload = $this->preparePayload($locale);
+            $payload = $this->preparePayload($webhook);
 
             if (!($payload['status_translation'] ?? false)) {
                 $this->logFailure($webhook->id, "Не удалось отправить вебхук: перевод недоступен", $payload);
@@ -53,15 +54,19 @@ class WebhookCallJob implements ShouldQueue
         }
     }
 
-    protected function preparePayload(string $locale): array
+    protected function preparePayload(Webhook $webhook): array
     {
+        $currency_code = $webhook->currency->code;
+
         return Arr::except([
-            ...$this->product->isTranslation($locale),
+            ...$this->product->isTranslation($webhook->locale ?? config('app.locale')),
             'images'   => $this->product->images,
             'uuid'     => $this->product->uuid,
             'code'     => $this->product->code,
             'object'   => $this->product->category?->name,
-            'currency' => $this->product->currency?->code,
+            'type_processing' => $this->type_processing,
+            'price' => $this->product->priceConvert($currency_code),
+            'currency' => $currency_code,
         ], [
             'id',
             'parsing_status',

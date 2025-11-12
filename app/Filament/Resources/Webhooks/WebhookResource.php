@@ -36,7 +36,8 @@ class WebhookResource extends Resource
         return $schema
             ->components([
                 TextInput::make('name')
-                    ->required(),
+                    ->required()
+                    ->columnSpanFull(),
                 TextInput::make('url')
                     ->url()
                     ->required(),
@@ -44,15 +45,15 @@ class WebhookResource extends Resource
                     ->minValue(15)
                     ->required(),
                 Select::make('locale')
-                    ->options(function () {
-                        return array_merge([config('app.locale') => str(config('app.locale'))->headline()], config('app.locales'));
-                    })
+                    ->options(config('app.locales'))
                     ->default(config('app.locale'))
                     ->required(),
                 Select::make('currency_id')
                     ->relationship('currency', 'code')
+                    ->searchable()
                     ->required(),
-                Toggle::make('status'),
+                Toggle::make('status')
+                    ->columnSpanFull(),
             ]);
     }
 

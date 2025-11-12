@@ -73,34 +73,28 @@ abstract class BaseParser
     abstract public function product(): array;
 
     // Только на первой странице каталога вызываем
-    public function parsePages(): void
+
+    /**
+     * @throws \Throwable
+     */
+    public function parsePages(): array
     {
-        $this->startLog('parser_donor', [
-            'donor_id' => $this->donor->id,
-        ]);
+        $result = $this->pages();
+        $products = $result['products'] ?? [];
+        $pages = $result['pages'] ?? [];
 
-        try {
-            $result = $this->pages();
-            $products = $result['products'] ?? [];
-            $pages = $result['pages'] ?? [];
+        $result = $this->parseProducts($products);
 
-            $result = $this->parseProducts($products);
-
-            foreach ($pages as $page) {
-                ParseDonorJob::dispatch($this->donor, $page)
-                    ->onQueue('high');
-            }
-
-            $this->finishLog($result['skipped'] ? 'error' : 'success', 'The parsing of the catalog pages has been completed', [
-                'pages' => count($pages),
-                'products' => count($products),
-                ...$result
-            ]);
-        } catch (\Throwable $e) {
-            $this->failLog($e->getMessage(), [
-                'trace' => $e,
-            ]);
+        foreach ($pages as $page) {
+            ParseDonorJob::dispatch($this->donor, $page)
+                ->onQueue('high');
         }
+
+        return [
+            'result' => $this->pages(),
+            'products' => $result['products'] ?? [],
+            'pages' => $result['pages'] ?? [],
+        ];
     }
 
     // Сохраняем постранично

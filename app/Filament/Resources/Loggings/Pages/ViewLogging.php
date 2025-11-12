@@ -13,7 +13,7 @@ class ViewLogging extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            EditAction::make(),
+            //
         ];
     }
 }
