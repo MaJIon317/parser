@@ -35,4 +35,7 @@ return [
         ],
     ],
 
+    'parser' => [
+        'url' => env('PARSER_URL', 'http://127.0.0.1:3200/fetch'),
+    ],
 ];

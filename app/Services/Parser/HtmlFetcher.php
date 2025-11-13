@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Log;
 
 class HtmlFetcher
 {
-    protected string $baseUrl = 'http://127.0.0.1:3200/fetch';
     protected int $maxProxySwitches = 6;
     protected int $globalTimeout = 120; // сек
     protected ProxyManager $proxyManager;
@@ -100,7 +99,7 @@ class HtmlFetcher
     protected function runNodeFetcher(string $url, ?string $proxyStr = null, ?int $timeoutSec = null): array
     {
         try {
-            $response = Http::timeout($timeoutSec ?? 30)->post($this->baseUrl, [
+            $response = Http::timeout($timeoutSec ?? 30)->post(config('services.parser.url', 'http://127.0.0.1:3200/fetch'), [
                 'url' => $url,
                 'proxy' => $proxyStr,
             ]);
