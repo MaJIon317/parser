@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
-use App\Models\Translation;
+use App\Jobs\WatermarkRemoveJob;
+use App\Models\Product;
+use App\Models\Webhook;
 use App\Services\ProductWithdrawalService;
-use Filament\Infolists\Components\IconEntry;
+use Filament\Actions\Action;
 use Filament\Infolists\Components\KeyValueEntry;
-use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -27,16 +28,22 @@ class ProductInfolist
                 ->columnSpanFull()
                 ->visible(fn ($record) => !empty($record['errors'])),
 
-            ImageEntry::make('images')
-                ->state(function ($record) {
-                    return collect($record->images ?? [])
-                        ->map(fn ($path) => Storage::url($path))
-                        ->toArray();
-                })
+            Section::make('Images')
+                ->schema(fn($record) => static::imageReady($record))
                 ->columnSpanFull()
-                ->imageWidth(80)
-                ->imageHeight(80)
-                ->visible(fn ($record) => !empty($record['images'])),
+                ->visible(fn ($record) => $record->images()->count())
+                ->belowContent([
+                    Action::make('Replace watermark')
+                        ->icon('heroicon-o-rocket-launch')
+                        ->color('warning')
+                        ->action(function ($record) {
+                            foreach ($record->images as $image) {
+                                WatermarkRemoveJob::dispatchSync($image);
+                            }
+
+                            $record->refresh();
+                        })
+                ]),
 
             Section::make('Основная информация')
                 ->columns(2)
@@ -87,9 +94,7 @@ class ProductInfolist
                                 KeyValueEntry::make("detail_{$locale}") // можно хранить переводы в разных полях
                                 ->label('')
                                     ->state(function ($record) use ($locale) {
-                                        return $record->detail ? static::detailArray((new ProductWithdrawalService(
-                                            $record->donor->setting['language'] ?? config('app.locale'), $locale)
-                                                    )->getTranslatedProduct($record->toArray() ?? [])) : [];
+                                        return $record->detail ? static::detailArray($record->toArray()) : [];
                                     }),
                             ]);
                     })->toArray()
@@ -102,5 +107,56 @@ class ProductInfolist
     protected static function detailArray(?array $array = null): array
     {
         return Arr::dot($array ?? []) ?? [];
+    }
+
+    protected static function imageReady(Product $product): array
+    {
+        $result = [];
+
+        $images = $product->images;
+
+        $collectionImages = [
+            'default' => $images->pluck('url')->toArray(),
+
+            'donor' => $images
+                ->flatMap(function ($img) {
+                    return collect($img->correct_url ?? [])
+                        ->map(fn ($path, $key) => ['donor_id' => $key, 'path' => $path]);
+                })
+                ->groupBy('donor_id')
+                ->map(fn ($group) => $group->pluck('path')->toArray())
+                ->toArray(),
+        ];
+
+        foreach ($collectionImages as $collectionImageKey => $collectionImage) {
+
+            if ($collectionImageKey == 'default') {
+                $result[] = ImageEntry::make($collectionImageKey)
+                    ->state(function () use ($collectionImage) {
+                        return collect($collectionImage)
+                            ->map(fn($path) => Storage::url($path))
+                            ->toArray();
+                    })
+                    ->columnSpanFull()
+                    ->imageWidth(80)
+                    ->imageHeight(80);
+            } else {
+                foreach ($collectionImage as $key => $values) {
+                    $result[] = ImageEntry::make($key)
+                        ->label(implode(': ', ['Webhook', Webhook::find($key)?->name ?? $key]))
+                        ->state(function () use ($values) {
+                            return collect($values)
+                                ->map(fn($path) => Storage::url($path))
+                                ->toArray();
+                        })
+                        ->columnSpanFull()
+                        ->imageWidth(80)
+                        ->imageHeight(80);
+                }
+
+            }
+        }
+
+        return $result;
     }
 }

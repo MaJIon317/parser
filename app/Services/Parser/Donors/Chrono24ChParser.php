@@ -101,7 +101,7 @@ class Chrono24ChParser extends BaseParser
                             'code' => $this->extractChrono24Id($url), // Chrono24 не дает артикул → генерируем
                             'category_id' => $category_id,
                             'price' => $offer['price'] ?? null,
-                            'currency' => 'CHF',
+                            'currency' => $node['priceCurrency'],
                             'url' => $url,
                             'status' => (str_contains($offer['availability'] ?? '', 'InStock')) ? 1 : 0,
                         ];
@@ -251,6 +251,7 @@ class Chrono24ChParser extends BaseParser
         $result = [];
 
         foreach ($rows as $row) {
+
             $keyNode = $dom->query('./td[1]/strong', $row)->item(0);
             $valueNode = $dom->query('./td[2]', $row)->item(0);
 
@@ -260,42 +261,84 @@ class Chrono24ChParser extends BaseParser
 
             $key = trim($keyNode->textContent);
 
-            // Обработка кнопок типа js-conditions или js-tooltip
-            $buttonNode = $dom->query('.//button', $valueNode)->item(0);
-
+            // Значения, которые мы будем формировать
             $text = null;
             $description = null;
             $hint = null;
 
-            if ($buttonNode) {
-                $text = trim($buttonNode->textContent);
+            // -------------------------------------------------------------------
+            // TYPE 1: Condition + description  (button + p)
+            // -------------------------------------------------------------------
+            $conditionBtn = $dom->query('.//button[contains(@class,"js-conditions")]', $valueNode)->item(0);
+            if ($conditionBtn) {
+
+                $text = trim($conditionBtn->textContent);
 
                 $pNode = $dom->query('.//p', $valueNode)->item(0);
                 $description = $pNode ? trim($pNode->textContent) : null;
 
-                $hint = $buttonNode->hasAttribute('data-content') ? $buttonNode->getAttribute('data-content') : null;
-            } else {
-                // Удаляем все ссылки <a>
-                foreach ($valueNode->getElementsByTagName('a') as $a) {
-                    $a->parentNode->removeChild($a);
-                }
-                $text = trim(preg_replace('/\s+/', ' ', $valueNode->textContent));
+                $result[$key] = [
+                    'text' => $text,
+                    'description' => $description
+                ];
+
+                continue;
             }
 
-            // Формируем значение в зависимости от наличия description или hint
-            if ($description || $hint) {
-                $value = [];
-                if ($text) $value['text'] = $text;
-                if ($description) $value['description'] = $description;
-                if ($hint) $value['hint'] = $hint;
-                $result[$key] = $value;
-            } elseif ($text !== '') {
+            // -------------------------------------------------------------------
+            // TYPE 2: Scope of delivery   (div + button[data-content])
+            // -------------------------------------------------------------------
+            $tooltipBtn = $dom->query('.//button[contains(@class,"js-tooltip")]', $valueNode)->item(0);
+            if ($tooltipBtn) {
+
+                // Берём текст без кнопки
+                $divNode = $dom->query('.//div', $valueNode)->item(0);
+
+                if ($divNode) {
+                    foreach ($divNode->getElementsByTagName('button') as $btn) {
+                        $btn->parentNode->removeChild($btn);
+                    }
+                    $text = trim(preg_replace('/\s+/', ' ', $divNode->textContent));
+                }
+
+                $hint = $tooltipBtn->hasAttribute('data-content')
+                    ? trim($tooltipBtn->getAttribute('data-content'))
+                    : null;
+
+                $result[$key] = [
+                    'text' => $text,
+                    'hint'  => $hint,
+                ];
+
+                continue;
+            }
+
+            // -------------------------------------------------------------------
+            // TYPE 3: Reference number (удаляем ссылки)
+            // TYPE 4: Movement, Simple text
+            // -------------------------------------------------------------------
+
+            // Удаляем все <button> (если остались)
+            foreach ($valueNode->getElementsByTagName('button') as $btn) {
+                $btn->parentNode->removeChild($btn);
+            }
+
+            // Удаляем все <a> оставляя только их текст
+            foreach ($valueNode->getElementsByTagName('a') as $a) {
+                $a->parentNode->removeChild($a);
+            }
+
+            // Вынимаем чистый текст
+            $text = trim(preg_replace('/\s+/', ' ', $valueNode->textContent));
+
+            if ($text !== '') {
                 $result[$key] = $text;
             }
         }
 
         return $result;
     }
+
 
 
 }

@@ -4,8 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Product;
 use App\Models\Webhook;
-use App\Models\WebhookLog;
-use App\Services\CurrencyService;
 use App\Services\WebhookService;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -14,29 +12,40 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class WebhookCallJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected string $requestId;
+
     public function __construct(
         public Product $product,
         public bool $isRetry = false,
         public string $type_processing = 'update',
-    ) {}
+    ) {
+        $this->requestId = Str::uuid();
+    }
 
     /**
      * @throws Exception
      */
-    public function handle(WebhookService $webhookService, CurrencyService $currencyService): void
+    public function handle(WebhookService $webhookService): void
     {
         $webhooks = Webhook::where('status', true)->get();
 
         foreach ($webhooks as $webhook) {
-            $payload = $this->preparePayload($webhook);
+            if (!$this->isParsed($webhook, $this->product)) {
+
+                $this->logFailure($webhook->id, "The product cannot be unloaded due to the settings", $webhook->setting);
+                continue;
+            }
+
+            $payload = $this->preparePayload($webhook, $webhook->setting);
 
             if (!($payload['status_translation'] ?? false)) {
-                $this->logFailure($webhook->id, "Не удалось отправить вебхук: перевод недоступен", $payload);
+                $this->logFailure($webhook->id, "Couldn't send webhook: translation is unavailable on {$webhook->locale}", $payload);
                 continue;
             }
 
@@ -54,18 +63,50 @@ class WebhookCallJob implements ShouldQueue
         }
     }
 
-    protected function preparePayload(Webhook $webhook): array
+    protected function preparePayload(Webhook $webhook, array $setting = []): array
     {
+        $webhookId = $webhook->id;
+
+        // Обрабатываем изображения
+        foreach ($this->product->images ?? [] as $image) {
+            WatermarkRemoveJob::dispatchSync($image);
+        }
+
+        // Если у проекта нет настроек изображений
+        $images = [];
+
+        $productImages = $this->product->images;
+
+        if ($webhook->setting['watermark']['is_remove'] ?? false) {
+            foreach ($productImages as $image) {
+                $path = $image->correct_url[$webhookId] ?? null;
+
+                if ($path) {
+                    $images[] = $path;
+                }
+            }
+        } else {
+            foreach ($productImages as $image) {
+                $images[] = $image->url;
+            }
+        }
+
         $currency_code = $webhook->currency->code;
+
+        $price_adjustment = $setting['price_adjustment_category'][$this->product->category_id]['price']
+            ?? $setting['price_adjustment']
+            ?? 0;
+
+        $price = $this->product->price * (1 + ($price_adjustment / 100));
 
         return Arr::except([
             ...$this->product->isTranslation($webhook->locale ?? config('app.locale')),
-            'images'   => $this->product->images,
+            'images'   => $images,
             'uuid'     => $this->product->uuid,
             'code'     => $this->product->code,
             'object'   => $this->product->category?->name,
             'type_processing' => $this->type_processing,
-            'price' => $this->product->priceConvert($currency_code),
+            'price' => $this->product->priceConvert($currency_code, $price),
             'currency' => $currency_code,
         ], [
             'id',
@@ -81,21 +122,43 @@ class WebhookCallJob implements ShouldQueue
 
     protected function logSuccess(int $webhookId, array $payload): void
     {
-        WebhookLog::create([
-            'webhook_id' => $webhookId,
-            'product_id' => $this->product->id,
-            'message'    => 'Вебхук успешно отправлен',
-            'data'       => $payload,
+        $this->product->logs()->create([
+            'request_id' => $this->requestId,
+            'model_type' => Webhook::class,
+            'model_id'   => $webhookId,
+            'type' => 'success',
+            'code' => 'webhook',
+            'message' => 'The webhook was successfully sent',
+            'data' => $payload,
         ]);
     }
 
     protected function logFailure(int $webhookId, string $message, array $payload): void
     {
-        WebhookLog::create([
-            'webhook_id' => $webhookId,
-            'product_id' => $this->product->id,
-            'message'    => $message,
-            'data'       => $payload,
+        $this->product->logs()->create([
+            'request_id' => $this->requestId,
+            'model_type' => Webhook::class,
+            'model_id' => $webhookId,
+            'type' => 'error',
+            'code' => 'webhook',
+            'message' => $message,
+            'data' => $payload,
         ]);
+    }
+
+    /*
+     * Проверяем должен ли выгружаться товар
+     */
+    protected function isParsed(Webhook $webhook, Product $product): bool
+    {
+        $status = true;
+
+        $category_ids = $webhook->setting['category_ids'] ?? [];
+
+        if ($category_ids && !in_array($product->category_id, $category_ids)) {
+            $status = false;
+        }
+
+        return $status;
     }
 }

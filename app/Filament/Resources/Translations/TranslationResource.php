@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\Translations;
 
 use App\Filament\Resources\Translations\Pages\ManageTranslations;
+use App\Jobs\TranslationJob;
+use App\Models\Product;
 use App\Models\Translation;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -16,6 +19,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ColorColumn;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -37,26 +41,71 @@ class TranslationResource extends Resource
             ->components([
                 Textarea::make('source')
                     ->required()
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->disabled(),
                 Textarea::make('target')
-                    ->required()
                     ->columnSpanFull(),
             ]);
     }
 
     public static function table(Table $table): Table
     {
+        set_time_limit(0);
+
+        /*
+        Product::all()->each(function (Product $product) {
+
+            if ($product->detail) {
+                $details = flattenKeysAndValuesFlexible($product->detail, [ // Исключаем ключи
+                    'sku', 'name', 'category', 'description', 'attributes',
+                ], [ // Исключаем значения по ключу
+                    'sku',
+                ]);
+
+                foreach ($details as $detail) {
+                    $hash = md5($detail);
+
+                    Translation::firstOrCreate(
+                        ['hash' => $hash],
+                        [
+                            'lang' => $product->donor->setting['language'] ?? config('app.fallback_locale'),
+                            'source' => $detail,
+                        ]
+                    );
+                }
+            }
+
+        });
+*/
+        /*
+         * Translation::query()
+            ->select('id')
+            ->chunk(5, function ($chunk) {
+                $ids = $chunk->pluck('id')->toArray();
+                TranslationJob::dispatch($ids);
+            });
+         */
+
         return $table
             ->recordTitleAttribute('source')
             ->columns([
                 TextColumn::make('source')
                     ->wrap()
+                    ->lineClamp(2)
                     ->searchable(),
+                SelectColumn::make('lang')
+                    ->options(config('app.locales'))
+                    ->afterStateUpdated(function (Translation $record) {
+                        $record->update([
+                            'target' => null,
+                            'target_hash' => null,
+                            'target_text' => null,
+                        ]);
+                    }),
                 TextColumn::make('target')
                     ->wrap()
+                    ->lineClamp(2)
                     ->searchable(),
-                TextColumn::make('lang')
-                    ->state(fn ($record): string => "{$record['from_lang']} -> {$record['to_lang']}"),
                 TextColumn::make('canonical.target')
                     ->label('Canonical')
                     ->badge()
@@ -81,33 +130,38 @@ class TranslationResource extends Resource
                     ])
                     ->query(function ($query, $value) {
                         if ($value) {
-                            // Дубликаты — это записи, у которых есть canonical_id или повтор normalized_text
+                            // Дубликаты — это записи, у которых есть canonical_id или повтор target_text
                             $query->whereNotNull('canonical_id')
-                                ->orWhereIn('normalized_text', function ($subQuery) {
-                                    $subQuery->select('normalized_text')
+                                ->orWhereIn('target_text', function ($subQuery) {
+                                    $subQuery->select('target_text')
                                         ->from('translations')
-                                        ->groupBy('normalized_text', 'to_lang')
+                                        ->groupBy('target_text')
                                         ->havingRaw('COUNT(*) > 1');
                                 });
                         }
                     }),
             ])
             ->groups([
-                // Группировка по normalized_text, чтобы все дубликаты были рядом
-                'normalized_text',
+                // Группировка по target_text, чтобы все дубликаты были рядом
+                'target_hash',
             ])
             ->recordActions([
 
+                Action::make('translation')
+                    ->label('Translate')
+                    ->action(function (Translation $record) {
+                        TranslationJob::dispatchSync([$record->id]);
+                    }),
+
                 Action::make('setAsCanonical')
-                    ->label('Сделать главным')
+                    ->label('The main')
                     ->icon('heroicon-o-star')
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(function (Translation $record) {
                         // Обновляем canonical_id всех дубликатов
                         DB::transaction(function () use ($record) {
-                            $duplicates = Translation::where('normalized_text', $record->normalized_text)
-                                ->where('to_lang', $record->to_lang)
+                            $duplicates = Translation::where('target_text', $record->target_text)
                                 ->where('id', '!=', $record->id)
                                 ->get();
 
@@ -121,11 +175,15 @@ class TranslationResource extends Resource
                     }),
 
                 EditAction::make(),
-                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    BulkAction::make('translation')
+                        ->label('Перевести')
+                        ->action(function ($records) {
+                            TranslationJob::dispatchSync($records->pluck('id')->toArray());
+                        }),
+
                 ]),
             ]);
     }

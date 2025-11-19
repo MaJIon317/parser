@@ -25,6 +25,16 @@ return new class extends Migration
             $table->json('setting')->nullable(); // Настройки парсинга
             $table->timestamps();
         });
+
+        Schema::create('donor_listings', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('donor_id');
+            $table->string('url')->index(); // Ссылки на страницы, который проходит парсер
+            $table->boolean('is_parsed')->default(true); // Удалось ли запарсить
+            $table->timestamps();
+
+            $table->foreign('donor_id')->references('id')->on('donors')->onDelete('cascade');
+        });
     }
 
     /**

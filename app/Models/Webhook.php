@@ -15,15 +15,15 @@ class Webhook extends Model
         'locale',
         'currency_id',
         'status',
+        'setting',
+    ];
+
+    public $casts = [
+        'setting' => 'array',
     ];
 
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
-    }
-
-    public function webhookLogs(): HasMany
-    {
-        return $this->hasMany(WebhookLog::class);
     }
 }

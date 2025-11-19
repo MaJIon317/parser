@@ -27,7 +27,6 @@ return new class extends Migration
             $table->decimal('price', 20, 8)->nullable();
             $table->unsignedBigInteger('currency_id')->nullable();
             $table->json('detail')->nullable();
-            $table->json('images')->nullable();
             $table->string('parsing_status')->default('new');
             $table->string('status')->default('active');
 
@@ -43,7 +42,30 @@ return new class extends Migration
             $table->unique(['donor_id', 'code']);
         });
 
+        Schema::create('product_images', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('product_id');
+            $table->string('url')->index(); // Ссылки на изображение
+            $table->json('correct_url')->nullable(); // Ссылки на изображение
+            $table->json('hashed')->nullable(); // Хэши запросов
+            $table->timestamps();
 
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+        });
+
+        Schema::create('product_logs', function (Blueprint $table) {
+            $table->id();
+            $table->string('request_id')->index();
+            $table->unsignedBigInteger('product_id')->nullable();
+            $table->morphs('model');
+            $table->enum('type', ['success', 'info', 'error'])->default('info');
+            $table->string('code')->index();
+            $table->string('message');
+            $table->json('data')->nullable();
+            $table->timestamps();
+
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+        });
     }
 
     /**

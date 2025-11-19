@@ -38,4 +38,9 @@ return [
     'parser' => [
         'url' => env('PARSER_URL', 'http://127.0.0.1:3200/fetch'),
     ],
+
+    'watermark_remove' => [
+        'api_url' => env('WATERMARK_REMOVE_API_URL', 'http://127.0.0.1:8091/remove'),
+    ],
 ];
+

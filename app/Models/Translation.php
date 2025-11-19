@@ -12,12 +12,11 @@ class Translation extends Model
 {
     protected $fillable = [
         'hash',
+        'lang',
         'source',
         'target',
-        'from_lang',
-        'to_lang',
-        'normalized_hash',
-        'normalized_text',
+        'target_hash',
+        'target_text',
         'canonical_id',
     ];
 

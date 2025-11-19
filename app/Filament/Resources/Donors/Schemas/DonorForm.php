@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Donors\Schemas;
 
 use App\Models\Category;
 use App\Services\Parser;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -100,6 +101,7 @@ class DonorForm
                                         ->default(720),
 
                                 ]),
+
 
                     ])
                     ->columnSpanFull()

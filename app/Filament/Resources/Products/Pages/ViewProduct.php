@@ -19,8 +19,7 @@ class ViewProduct extends ViewRecord
     {
         return [
 
-            Action::make('customAction')
-                ->label(__('Parse'))
+            Action::make('Parse')
                 ->icon('heroicon-o-inbox-arrow-down')
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Product $record) {
@@ -35,8 +34,7 @@ class ViewProduct extends ViewRecord
                         ->send();
                 }),
 
-            Action::make('customAction')
-                ->label(__('WebhookCallJob'))
+            Action::make('WebhookCallJob')
                 ->icon('heroicon-o-inbox-arrow-down')
                 ->tooltip('The product data will be downloaded from the donor\'s website.')
                 ->action(function (Product $record) {

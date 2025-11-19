@@ -6,7 +6,6 @@ use App\Facades\Currency;
 use App\Models\Donor;
 use App\Models\Product;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ProductSaver
@@ -94,18 +93,21 @@ class ProductSaver
             return $product->toArray();
         }
 
-        // Скачиваем изображения
-        foreach ($data['images'] ?? [] as $key => $image) {
-            $data['images'][$key] = $this->imageDownloader->download($image, $product->uuid);
-        }
-
         $product->update([
-            'detail' => $data['detail'] ?? null,
-            'images' => $data['images'] ?? null,
+            'detail' => $data['detail'],
             'parsing_status' => 'completed',
             'last_parsing' => now(),
             'errors' => $data['errors'] ?? null,
         ]);
+
+        // Скачиваем оставшиеся изображения
+        foreach ($data['images'] ?? [] as $image) {
+            $path = $this->imageDownloader->download($image, $product->uuid);
+
+            $product->images()->firstOrCreate([
+                'url' => $path,
+            ]);
+        }
 
         return [
             'status' => 'success',

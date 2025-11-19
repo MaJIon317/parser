@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Products\Tables;
 
 use App\Jobs\ParseProductJob;
 use App\Jobs\WebhookCallJob;
+use App\Livewire\ProductLogsTable;
+use App\Models\Donor;
 use App\Models\Product;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -14,6 +16,7 @@ use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -37,6 +40,10 @@ class ProductsTable
                 TextColumn::make('code')
                     ->sortable()
                     ->searchable(),
+                TextColumn::make('price')
+                    ->label(__('Parsing price'))
+                    ->money(fn($record) => $record->currency->code)
+                    ->sortable(),
                 TextColumn::make('formatted_price')
                     ->sortable(),
                 TextColumn::make('status')
@@ -49,7 +56,7 @@ class ProductsTable
                     ->openUrlInNewTab()
                     ->searchable(),
                 TextColumn::make('images')
-                    ->state(fn($record) => count($record->images ?? [])),
+                    ->state(fn($record) => $record->images->count()),
                 TextColumn::make('detail.attributes')
                     ->label('Attributes')
                     ->state(fn($record) => count($record->detail['attributes'] ?? []))
@@ -62,17 +69,35 @@ class ProductsTable
                     ->wrap(),
             ])
             ->filters([
-                Filter::make('is_images')
-                    ->label(__('With images'))
-                    ->toggle()
-                    ->query(fn (Builder $query): Builder => $query->whereNotNull('images')
-                                                    ->orWhere('images', '!=', '{}')),
-
                 Filter::make('errors')
                     ->label(__('With errors'))
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query->whereNotNull('errors')
                         ->orWhere('errors', '!=', '{}')),
+
+                TernaryFilter::make('images')
+                    ->label(__('Images'))
+                    ->trueLabel('Availability')
+                    ->falseLabel('Unavailability')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereHas('images'),
+                        false: fn (Builder $query) => $query->doesntHave('images'),
+                    ),
+
+                TernaryFilter::make('details')
+                    ->label(__('Details'))
+                    ->trueLabel('Availability')
+                    ->falseLabel('Unavailability')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('detail', '!=', null),
+                        false: fn (Builder $query) => $query->where('detail', null),
+                    ),
+
+                SelectFilter::make('donor_id')
+                    ->label(__('Donor'))
+                    ->options(function () {
+                        return Donor::pluck('name', 'id')->toArray();
+                    }),
 
                 SelectFilter::make('status')
                     ->options(function () {
@@ -110,7 +135,7 @@ class ProductsTable
                             ->success()
                             ->send();
                     })
-                    ->visible(fn($record) => !empty($record['images'])),
+                    ->visible(fn($record) => empty($record['errors']) && $record->images->count()),
 
                 Action::make('customAction')
                     ->label(__('Parse'))
@@ -123,8 +148,18 @@ class ProductsTable
                         $record->refresh();
                     }),
 
-                ViewAction::make()
-                    ->label(''),
+                ViewAction::make(),
+
+                Action::make('logs')
+                    ->label('Logs')
+                    ->color('secondary')
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->modalHeading(fn(Product $record) => "Product Logs: {$record->code}")
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record) => view('product.logs-modal', [
+                        'product' => $record,
+                    ]))
+                    ->slideOver(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

@@ -11,24 +11,29 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('translations', function (Blueprint $table) {
+        Schema::create('translations', function (Blueprint $table) { // Переводы найденных атрибутов на язык по-умолчанию
             $table->id();
-            $table->string('hash', 32)->index(); // md5(source)
+            $table->string('hash', 32)->unique()->index(); // md5(source)
+            $table->string('lang', 8); // Надо понимать на каком языке исходный текст
             $table->text('source'); // оригинальный текст
-            $table->text('target'); // перевод
-            $table->string('from_lang', 8);
-            $table->string('to_lang', 8);
-            $table->string('normalized_hash')->nullable()->index(); // md5(source)
-            $table->string('normalized_text')->nullable()->index();
+            $table->text('target')->nullable(); // перевод на язык по-умолчанию
+            $table->string('target_hash')->nullable()->index(); // md5(source)
+            $table->string('target_text')->nullable()->index(); // Для поиска
             $table->unsignedBigInteger('canonical_id')->nullable()->index(); // 🔗 Каноническая ссылка на основную запись
             $table->timestamps();
 
-            $table->foreign('canonical_id')
-                ->references('id')
-                ->on('translations')
-                ->onDelete('set null'); // если удалён canonical, ссылка обнуляется
+            $table->foreign('canonical_id')->references('id')->on('translations')->onDelete('set null'); // если удалён canonical, ссылка обнуляется
+        });
 
-            $table->unique(['hash', 'from_lang', 'to_lang'], 'translations_unique');
+        // Переводы найденных атрибутов на язык по-умолчанию
+        Schema::create('translation_variants', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('translation_id');
+            $table->string('lang', 8);
+            $table->text('text'); // Перевод
+            $table->timestamps();
+
+            $table->foreign('translation_id')->on('translations')->references('id')->onDelete('cascade');
         });
 
     }
@@ -38,6 +43,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('translation_variants');
         Schema::dropIfExists('translations');
     }
 };

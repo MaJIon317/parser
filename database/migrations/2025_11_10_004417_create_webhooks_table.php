@@ -21,21 +21,10 @@ return new class extends Migration
             $table->string('locale');
             $table->unsignedBigInteger('currency_id');
             $table->boolean('status')->default(true);
+            $table->json('setting')->nullable(); // Настройки
             $table->timestamps();
 
             $table->foreign('currency_id')->references('id')->on('currencies')->onDelete('cascade');
-        });
-
-        Schema::create('webhook_logs', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('webhook_id');
-            $table->unsignedBigInteger('product_id')->nullable();
-            $table->string('message');
-            $table->json('data')->nullable();
-            $table->timestamps();
-
-            $table->foreign('webhook_id')->references('id')->on('webhooks')->onDelete('cascade');
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('set null');
         });
     }
 

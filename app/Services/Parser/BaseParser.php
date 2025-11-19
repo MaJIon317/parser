@@ -117,7 +117,6 @@ abstract class BaseParser
 
             $this->finishLog('success', 'Product parsing completed', [
                 'detail' => $product['product']['detail'],
-                'images' => $product['product']['images'],
             ]);
 
             return $product;

@@ -10,7 +10,7 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[ObservedBy([ProductObserver::class])]
 class Product extends Model
@@ -27,7 +27,6 @@ class Product extends Model
         'currency_id',
         'object',
         'detail',
-        'images',
         'parsing_status',
         'status',
         'last_parsing',
@@ -36,7 +35,6 @@ class Product extends Model
 
     public $casts = [
         'detail' => 'array',
-        'images' => 'array',
         'errors' => 'array',
     ];
 
@@ -60,6 +58,14 @@ class Product extends Model
         return $this->belongsTo(Currency::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany|\App\Models\ProductLog[]
+     */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(ProductLog::class);
+    }
+
     public function getConvertPriceAttribute():   ?string
     {
         return CurrencyFacade::convert($this->price, $this->currency->code, config('app.currency'));
@@ -70,9 +76,9 @@ class Product extends Model
         return CurrencyFacade::format($this->convert_price);
     }
 
-    public function priceConvert(string $currency_code)
+    public function priceConvert(string $currency_code, ?float $newPrice = null): float
     {
-        return CurrencyFacade::convert($this->price, $this->currency->code, $currency_code);
+        return CurrencyFacade::convert($newPrice ?: $this->price, $this->currency->code, $currency_code);
     }
 
     public function getImagePathsAttribute(): array
@@ -88,5 +94,10 @@ class Product extends Model
                     $this->donor->setting['language'] ?? config('app.fallback_locale'),
                     $toLang))
                 ->getTranslatedProduct($this->toArray());
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class);
     }
 }

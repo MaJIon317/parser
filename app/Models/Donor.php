@@ -27,6 +27,11 @@ class Donor extends Model
         'setting' => 'array',
     ];
 
+    public function listings(): HasMany
+    {
+        return $this->hasMany(DonorListing::class);
+    }
+
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

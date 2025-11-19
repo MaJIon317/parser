@@ -31,14 +31,14 @@ class ProductWidget extends StatsOverviewWidget
             StatsOverviewWidget\Stat::make(
                 label: 'Transmitted via the API',
                 value: Product::where('status', 'active')
+                            ->whereHas('images')
                             ->whereNotNull('price')
-                            ->whereNotNull('images')
                             ->whereNotNull('detail')
                             ->count(),
             ),
             StatsOverviewWidget\Stat::make(
                 label: 'Products with details',
-                value: Product::whereNotNull('detail')->where('detail', '!=', '[]')->count(),
+                value: Product::whereNotNull('detail')->count(),
             ),
             StatsOverviewWidget\Stat::make(
                 label: 'Processed today',
@@ -46,11 +46,11 @@ class ProductWidget extends StatsOverviewWidget
             ),
             StatsOverviewWidget\Stat::make(
                 label: 'Products with errors',
-                value: Product::whereNotNull('errors')->where('errors', '!=', '[]')->count(),
+                value: Product::whereNotNull('errors')->count(),
             ),
             StatsOverviewWidget\Stat::make(
                 label: 'Products without images',
-                value: Product::whereNotNull('images')->where('images', '!=', '[]')->count(),
+                value: Product::doesntHave('images')->count(),
             ),
         ];
     }
