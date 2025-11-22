@@ -103,7 +103,7 @@ class TranslationJob implements ShouldQueue
     {
         // 1️⃣ Skip too long texts
         $text = trim($text);
-        if (mb_strlen($text, 'UTF-8') > 500) {
+        if (mb_strlen($text, 'UTF-8') > 220) {
             return md5($text);
         }
 

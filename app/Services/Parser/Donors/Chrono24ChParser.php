@@ -318,16 +318,6 @@ class Chrono24ChParser extends BaseParser
             // TYPE 4: Movement, Simple text
             // -------------------------------------------------------------------
 
-            // Удаляем все <button> (если остались)
-            foreach ($valueNode->getElementsByTagName('button') as $btn) {
-                $btn->parentNode->removeChild($btn);
-            }
-
-            // Удаляем все <a> оставляя только их текст
-            foreach ($valueNode->getElementsByTagName('a') as $a) {
-                $a->parentNode->removeChild($a);
-            }
-
             // Вынимаем чистый текст
             $text = trim(preg_replace('/\s+/', ' ', $valueNode->textContent));
 

@@ -87,14 +87,19 @@ class ProductInfolist
 
             Tabs::make('Detail')
                 ->tabs(
-                    collect(array_merge([config('app.locale') => ucfirst(config('app.locale'))], []/* config('app.locales') */))->map(function ($label, $locale) {
+                    collect(array_merge([config('app.locale') => ucfirst(config('app.locale'))], config('app.locales')))->map(function ($label, $locale) {
 
                         return Tab::make($label)
                             ->schema([
                                 KeyValueEntry::make("detail_{$locale}") // можно хранить переводы в разных полях
                                 ->label('')
-                                    ->state(function ($record) use ($locale) {
-                                        return $record->detail ? static::detailArray($record->toArray()) : [];
+                                    ->state(function (Product $record) use ($locale) {
+                                        $toArray = $record->getAttributes();
+                                        $toArray['detail'] = json_decode($toArray['detail'], true);
+
+                                        $toArray = (new ProductWithdrawalService)->getTranslatedProduct($toArray);
+
+                                        return $record->detail ? static::detailArray($toArray) : [];
                                     }),
                             ]);
                     })->toArray()

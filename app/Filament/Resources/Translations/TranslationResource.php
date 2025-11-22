@@ -21,9 +21,11 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -50,42 +52,6 @@ class TranslationResource extends Resource
 
     public static function table(Table $table): Table
     {
-        set_time_limit(0);
-
-        /*
-        Product::all()->each(function (Product $product) {
-
-            if ($product->detail) {
-                $details = flattenKeysAndValuesFlexible($product->detail, [ // Исключаем ключи
-                    'sku', 'name', 'category', 'description', 'attributes',
-                ], [ // Исключаем значения по ключу
-                    'sku',
-                ]);
-
-                foreach ($details as $detail) {
-                    $hash = md5($detail);
-
-                    Translation::firstOrCreate(
-                        ['hash' => $hash],
-                        [
-                            'lang' => $product->donor->setting['language'] ?? config('app.fallback_locale'),
-                            'source' => $detail,
-                        ]
-                    );
-                }
-            }
-
-        });
-*/
-        /*
-         * Translation::query()
-            ->select('id')
-            ->chunk(5, function ($chunk) {
-                $ids = $chunk->pluck('id')->toArray();
-                TranslationJob::dispatch($ids);
-            });
-         */
-
         return $table
             ->recordTitleAttribute('source')
             ->columns([
@@ -121,37 +87,25 @@ class TranslationResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->deferFilters(false)
             ->filters([
-                // Показывать только дубликаты
-                SelectFilter::make('duplicates')
-                    ->label('Дубликаты')
-                    ->options([
-                        1 => 'Показать только дубликаты',
-                    ])
-                    ->query(function ($query, $value) {
-                        if ($value) {
-                            // Дубликаты — это записи, у которых есть canonical_id или повтор target_text
-                            $query->whereNotNull('canonical_id')
-                                ->orWhereIn('target_text', function ($subQuery) {
-                                    $subQuery->select('target_text')
-                                        ->from('translations')
-                                        ->groupBy('target_text')
-                                        ->havingRaw('COUNT(*) > 1');
-                                });
-                        }
-                    }),
+                Filter::make('duplicates')
+                    ->label('Show only duplicates')
+                    ->toggle()
+                    ->baseQuery(fn (Builder $query) => $query->whereNotNull('canonical_id')
+                        ->orWhereIn('target_text', function ($subQuery) {
+                            $subQuery->select('target_text')
+                                ->from('translations')
+                                ->groupBy('target_text')
+                                ->havingRaw('COUNT(*) > 1');
+                        })),
+
             ])
             ->groups([
                 // Группировка по target_text, чтобы все дубликаты были рядом
                 'target_hash',
             ])
             ->recordActions([
-
-                Action::make('translation')
-                    ->label('Translate')
-                    ->action(function (Translation $record) {
-                        TranslationJob::dispatchSync([$record->id]);
-                    }),
 
                 Action::make('setAsCanonical')
                     ->label('The main')
@@ -172,6 +126,22 @@ class TranslationResource extends Resource
                             // Сама запись становится канонической
                             $record->update(['canonical_id' => null]);
                         });
+                    })
+                    ->visible(fn($record) => $record->canonical_id),
+
+                Action::make('reject')
+                    ->label('Reject')
+                    ->requiresConfirmation()
+                    ->color('danger')
+                    ->action(function (Translation $record) {
+                        $record->update(['canonical_id' => null]);
+                    })
+                    ->visible(fn($record) => $record->canonical_id),
+
+                Action::make('translation')
+                    ->label('Translate')
+                    ->action(function (Translation $record) {
+                        TranslationJob::dispatchSync([$record->id]);
                     }),
 
                 EditAction::make(),
@@ -179,7 +149,7 @@ class TranslationResource extends Resource
             ->toolbarActions([
                 BulkActionGroup::make([
                     BulkAction::make('translation')
-                        ->label('Перевести')
+                        ->label('Translate')
                         ->action(function ($records) {
                             TranslationJob::dispatchSync($records->pluck('id')->toArray());
                         }),
