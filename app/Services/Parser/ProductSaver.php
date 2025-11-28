@@ -76,6 +76,19 @@ class ProductSaver
 
     public function save(Product $product, array $data): array
     {
+        if ($data['sold'] ?? false) {
+            $product->update([
+                'parsing_status' => 'completed',
+                'status' => 'inactive',
+                'errors' => $data['errors'] ?? null,
+            ]);
+
+            return [
+                'status' => 'success',
+                'product' => $product->toArray(),
+            ];
+        }
+
         $validator = Validator::make($data, [
             'detail' => 'required|array',
             'detail.name' => 'required|string|max:500',
@@ -93,7 +106,11 @@ class ProductSaver
             return $product->toArray();
         }
 
+        $currency_id = $this->currencies->where('code', $data['currency'] ?? null)->first()?->id ?? $product->currency_id;
+
         $product->update([
+            'price' => $data['price'] ?? $product['price'],
+            'currency_id' => $currency_id,
             'detail' => $data['detail'],
             'parsing_status' => 'completed',
             'last_parsing' => now(),

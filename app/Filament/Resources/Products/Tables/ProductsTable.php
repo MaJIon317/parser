@@ -178,6 +178,20 @@ class ProductsTable
                         ->closeModalByClickingAway()
                         ->deselectRecordsAfterCompletion(),
 
+                    BulkAction::make('Send a hook')
+                        ->color('warning')
+                        ->icon('heroicon-o-rocket-launch')
+                        ->action(function (Collection $records) {
+                            foreach ($records as $record) {
+                                WebhookCallJob::dispatch($record);
+                            }
+
+                            Notification::make()
+                                ->title(__('Successfully sent'))
+                                ->success()
+                                ->send();
+                        }),
+
                     DeleteBulkAction::make(),
                 ]),
             ])

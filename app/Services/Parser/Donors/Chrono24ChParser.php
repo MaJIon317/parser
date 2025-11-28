@@ -206,7 +206,8 @@ class Chrono24ChParser extends BaseParser
 
         if (!$productData) {
             return [
-                'errors' => ['Не удалось найти объект Product в JSON-LD'],
+                'sold' => true, // Если к этому блоку дошло, но объект не найден, тогда товар уже распродан
+                'errors' => ['The product is sold out'],
             ];
         }
 
@@ -238,8 +239,10 @@ class Chrono24ChParser extends BaseParser
             'description' => $description,
             'attributes' => $this->parseAttributesTable($dom),
         ];
-
+dd($detail);
         return [
+            'currency' => $productData['offers']['priceCurrency'] ?? null,
+            'price' => $productData['offers']['price'] ?? null,
             'detail' => array_filter($detail),
             'images' => $images,
         ];

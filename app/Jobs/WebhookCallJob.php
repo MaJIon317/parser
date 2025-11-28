@@ -67,18 +67,15 @@ class WebhookCallJob implements ShouldQueue
     {
         $webhookId = $webhook->id;
 
-        // Обрабатываем изображения
-        foreach ($this->product->images ?? [] as $image) {
-            WatermarkRemoveJob::dispatchSync($image);
-        }
-
         // Если у проекта нет настроек изображений
         $images = [];
 
-        $productImages = $this->product->images;
-
         if ($webhook->setting['watermark']['is_remove'] ?? false) {
-            foreach ($productImages as $image) {
+            foreach ($this->product->images ?? [] as $image) {
+                WatermarkRemoveJob::dispatchSync($image);
+            }
+
+            foreach ($this->product->images as $image) {
                 $path = $image->correct_url[$webhookId] ?? null;
 
                 if ($path) {
@@ -86,7 +83,7 @@ class WebhookCallJob implements ShouldQueue
                 }
             }
         } else {
-            foreach ($productImages as $image) {
+            foreach ($this->product->images as $image) {
                 $images[] = $image->url;
             }
         }
